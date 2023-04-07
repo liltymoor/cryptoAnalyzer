@@ -29,7 +29,7 @@
     <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
    </property>
   </widget>
-  <widget class="QListView" name="indicatorsList">
+  <widget class="SelectionListView" name="indicatorsList">
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -37,6 +37,9 @@
      <width>181</width>
      <height>192</height>
     </rect>
+   </property>
+   <property name="editTriggers">
+    <set>QAbstractItemView::NoEditTriggers</set>
    </property>
   </widget>
   <widget class="QDateTimeEdit" name="fromDate">
@@ -88,14 +91,17 @@
   <widget class="QCheckBox" name="isLive">
    <property name="geometry">
     <rect>
-     <x>210</x>
-     <y>110</y>
+     <x>220</x>
+     <y>60</y>
      <width>81</width>
      <height>20</height>
     </rect>
    </property>
    <property name="text">
     <string>Live</string>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
    </property>
   </widget>
   <widget class="QTextEdit" name="textEdit">
@@ -108,7 +114,7 @@
     </rect>
    </property>
   </widget>
-  <widget class="QLabel" name="label">
+  <widget class="QLabel" name="search_label">
    <property name="geometry">
     <rect>
      <x>12</x>
@@ -121,7 +127,27 @@
     <string>Поиск</string>
    </property>
   </widget>
+  <widget class="QLabel" name="selected_pair">
+   <property name="geometry">
+    <rect>
+     <x>220</x>
+     <y>30</y>
+     <width>61</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+  </widget>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>SelectionListView</class>
+   <extends>QListView</extends>
+   <header>qt_selection_dialog</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections>
   <connection>

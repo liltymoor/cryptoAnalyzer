@@ -108,14 +108,16 @@ def fill_ppo(data, return_df=None):
 
     ppo_df = ppo.ppo()
     ppo_signal_df = ppo.ppo_signal()
+    data = fill_cross_signals(data, ppo_df, ppo_signal_df, 'PPO')
     if return_df is None:
         data['PPO'] = ppo_df.copy()
         data['PPO_Signal'] = ppo_signal_df.copy()
     else:
-        return_df['PPO'] = ppo_df.copy()
-        return_df['PPO_Signal'] = ppo_signal_df.copy()
-
-    data = fill_cross_signals(data, ppo_df, ppo_signal_df, 'PPO')
+        #result = pd.concat([return_df, ppo_df.copy(), ppo_signal_df], ignore_index=True)
+        #result.rename(columns={'0': 'PPO', '1': 'PPO Signal'}, inplace= True)
+        return_df["PPO"] = ppo_df.copy()
+        return_df["PPO_SIGNAL"] = ppo_df.copy()
+        return return_df
 
     return data
 
@@ -129,7 +131,9 @@ def fill_rsi(data, return_df=None):
         data['RSI'] = rsi_df.copy()
         return data
     else:
-        return pd.concat([return_df, rsi_df.copy()], ignore_index=False)
+        return_df['RSI'] = rsi_df.copy()
+        #result.rename({'0': 'RSI'}, inplace= True)
+        return return_df
 
 
 def fill_awesome_osc(data, return_df=None):

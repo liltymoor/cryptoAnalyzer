@@ -7,25 +7,35 @@ from binance_imports import Client
 from dataframe_handler import DataFrameCollector
 from constants import INDICATORS_VOCABULARY
 from indicators.ta_indicators_fill import *
+from PyQt6 import QtCore
 
 # TODO make it run cycles asynchronously
 
-
 class LiveCycler:
-    def __init__(self, currency_set):
-        self.currency_set = currency_set
+    def __init__(self, client, currency_set, signal: QtCore.pyqtSignal):
+        self.client = client
+        self.currencies = []
+        self.interval_loop = 0.01
+        self.signal = signal
 
-        self.__interval_loop = 0.01
+        for pair, interval in currency_set:
+            self.currencies.append(CurrencyLiveCycle(self.client, pair, interval))
+
+
 
     def set_check_interval(self, interval: float):
-        self.__interval_loop = interval
+        self.interval_loop = interval
+
+    def add_currency(self, pair, interval):
+        self.currencies.append(CurrencyLiveCycle(self.client, pair, interval))
 
     def live_loop(self):
-        for currency in self.currency_set:
+        for currency in self.currencies:
             if datetime.now() >= currency.get_exec_time():
                 currency.get_live()
                 currency.calculate_indicators()
                 currency.print_info()
+                self.signal.emit(currency.get_dataframes())
 
 
 
@@ -37,8 +47,10 @@ class CurrencyLiveCycle:
         self.interval = interval
 
         self.__df_collector = DataFrameCollector(client, pair, interval)
-        self.__df = self.__df_collector.live_collect()
-        self.__ind_df = pd.DataFrame()
+        self.__df = pd.DataFrame()
+        # TODO columns to constants
+        self.__ind_df = pd.DataFrame(0, index=range(1), columns=["RSI", "PPO", "PPO_SIGNAL"])
+        self.__last_updated = None
         self.__execute_time = self.__get_next_time()
         self.print_info()
 
@@ -65,17 +77,20 @@ class CurrencyLiveCycle:
             self.__df = self.__df_collector.live_collect()
         else:
             self.__df = self.__df_collector.live_collect(self.__df)
-
+        self.__last_updated = datetime.now()
         self.valid_time()
 
     def print_info(self):
         print("Currency:", self.currency_pair, "Interval:", self.interval, "Next load time:", self.__execute_time)
         print(self.__df.to_string())
-        print(self.__ind_df.to_string())
+        print(self.__ind_df)
 
     def calculate_indicators(self):
         calc = IndicatorsCalculator(self.__df, self.__ind_df)
         self.__ind_df = asyncio.run(calc.calculate())
+
+    def get_dataframes(self):
+        return (self.__df, self.__ind_df)
 
 
 class IndicatorsCalculator:
@@ -83,8 +98,7 @@ class IndicatorsCalculator:
         self.__df = df
         self.__ind_df = ind_df
 
-        # TODO перенести лист в константы
-        self.__inds = ["RSI"]
+        self.__inds = ["RSI", "PPO"]
 
     async def calculate(self):
         calc_q = asyncio.Queue()

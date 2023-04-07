@@ -7,22 +7,16 @@ from bokeh.embed import file_html
 from bokeh.resources import JS_RESOURCES, CDN, JSResources
 from qt_analyzer import loadMain
 
+import random
+import asyncio
+import aiohttp
+
+global client
 client = Client(API_KEY, SECRET_KEY)
 
-def run_live_currnecy():
-    marked_pairs = [
-        CurrencyLiveCycle(client, "ALICEBUSD", "1m"),
-        CurrencyLiveCycle(client, "ADAUSDT", "1m")
-    ]
-    cycler = LiveCycler(marked_pairs)
-    while True:
-        cycler.live_loop()
 
+def main_entry():
 
-def run_qt_ui(bokeh_obj):
-    loadMain(bokeh_obj)
-
-if __name__ == "__main__":
     x = [1, 2, 3, 4, 5]
     y = [6, 7, 6, 4, 5]
     y2 = [1, 8, 4, 1, 12]
@@ -33,11 +27,25 @@ if __name__ == "__main__":
     p.line(x, y)
     p.line(x, y2)
     html = file_html(p, CDN, "plotik")
-    run_qt_ui(html)
-    #show(p)
-    # run_live_currnecy()
+    loadMain(client)
 
+    # marked_pairs = [
+    #     CurrencyLiveCycle(client, "ALICEBUSD", "1m"),
+    #     CurrencyLiveCycle(client, "ADAUSDT", "1m")
+    # ]
+    # cycler = LiveCycler(client, [
+    #     ("ALICEBUSD", "1m"),
+    #     ("BTCBUSD", "1m"),
+    #     ("ADAUSDT", "1m"),
+    #     ("ADAUSDT", "1m"),
+    #     ("BNBBUSD", "1m")
+    # ])
+    # while True:
+    #     cycler.live_loop()
 
+if __name__ == "__main__":
+
+    main_entry()
 
 
 
