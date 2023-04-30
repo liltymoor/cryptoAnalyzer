@@ -1,6 +1,7 @@
 import time
 
 import aiohttp
+import pandas as pd
 
 from exceptions import LoadDataframeBinanceException
 from binance_imports import Client
@@ -25,7 +26,7 @@ class DataFrameCollector:
         # Getting last updates from binance client
         # This method is 0.3 sec
         historical = None
-        if startDate:
+        if startDate: # if we're getting the period of data, then we're using another get request
             startDate = int(datetime.timestamp(startDate) * 1000)
             endDate = int(datetime.timestamp(endDate) * 1000)
             historical = requests.get("https://data.binance.com/api/v3/klines",
@@ -36,7 +37,7 @@ class DataFrameCollector:
                                           'endTime': endDate,
                                           'limit': 730
                                       })
-        else:
+        else: # otherwise we're using this request to get the latest frames
             historical = requests.get(
                 f"https://data.binance.com/api/v3/klines?symbol={stock}&interval={interval}")
 
@@ -49,10 +50,17 @@ class DataFrameCollector:
         #     stock, interval, str(start_date))
 
         # Setting the pandas dataframe and its columns
-        df = pd.DataFrame([content[1:] for content in response_content],
-                          index=[pd.to_datetime(content[0] / 1000, unit='s') + timedelta(hours=3)
-                                 for content in response_content])
 
+        df = None
+        if startDate: # if we're getting a period of data, then we're indexing all the frames we got.
+            df = pd.DataFrame([content[1:] for content in response_content],
+                              index=[pd.to_datetime(content[0] / 1000, unit='s') + timedelta(hours=3)
+                                     for content in response_content])
+        else:
+              # otherwise we're indexing the -2 frame, that is not last
+              # because last frame is current frame that is not finished yet
+            df = pd.DataFrame([response_content[-2][1:]],
+                              index=[pd.to_datetime(response_content[-2][0] / 1000, unit='s') + timedelta(hours=3)])
         df.columns = DF_COLUMNS
 
         # Formatting given time from binance
@@ -64,18 +72,20 @@ class DataFrameCollector:
         return df
 
     # TODO not-live collect for some period of time
-    def live_collect(self, live_df=None,
+    def live_collect(self,
+                     interval: str,
+                     live_df=None,
                      startDate: datetime = None,
-                     endDate: datetime = None):
+                     endDate: datetime = None ):
         """Collect Pandas df easily with binance client, pair, interval and optionally startDate and endDate.
         If live_df is None (default case) - it will return the last collected df."""
 
         # TODO добавить поддержку остальных интервалов
         df = None
         if startDate:
-            df = self.__binance_df(str(self.binance_pair), '1m', startDate=startDate, endDate=endDate)
+            df = self.__binance_df(str(self.binance_pair), interval, startDate=startDate, endDate=endDate)
         else:
-            df = self.__binance_df(str(self.binance_pair), '1m')
+            df = self.__binance_df(str(self.binance_pair), interval)
 
         if df is not None:
             # if given df is None, or its None by default - this will return the collected df

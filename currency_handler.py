@@ -31,9 +31,10 @@ class LiveCycler:
 
     def live_loop(self):
         for currency in self.currencies:
+            currency.check_lost_frames()
             if datetime.now() >= currency.get_exec_time():
                 currency.get_live()
-                currency.calculate_indicators()
+                #currency.calculate_indicators()
                 currency.print_info()
                 self.signal.emit(currency.get_dataframes())
 
@@ -50,12 +51,14 @@ class CurrencyLiveCycle:
 
         #getting 1440 frames (1 day)
         self.__df = self.__df_collector.live_collect(
+            self.interval,
             startDate=self.__get_next_time() - timedelta(hours=12, minutes=2),
             endDate=self.__get_next_time() - timedelta(minutes=2)
         )
+        self.__last_updated = datetime.now()
+
         # TODO columns to constants
         self.__ind_df = pd.DataFrame({'RSI': [], 'PPO': [], 'PPO_SIGNAL': []})
-        self.__last_updated = None
         self.__execute_time = self.__get_next_time()
         self.print_info()
 
@@ -79,11 +82,28 @@ class CurrencyLiveCycle:
 
     def get_live(self):
         if self.__df is None:
-            self.__df = self.__df_collector.live_collect()
+            self.__df = self.__df_collector.live_collect(self.interval)
         else:
-            self.__df = self.__df_collector.live_collect(self.__df)
+            self.__df = self.__df_collector.live_collect(self.interval, live_df=self.__df)
         self.__last_updated = datetime.now()
         self.valid_time()
+
+    def get_period(self, period_start: datetime, period_end: datetime):
+        self.__df = self.__df_collector.live_collect(self.__df, period_start, period_end)
+        self.__last_updated = datetime.now()
+
+    def check_lost_frames(self):
+        delta = None
+        if self.interval == '1m':
+            delta = timedelta(minutes=1)
+        elif self.interval == '1h':
+            delta = timedelta(hours=1)
+        else: return # TODO add an exception here
+
+        if (datetime.now() - self.__last_updated) > delta:
+            print("Lost frames were found. Fetching them")
+            self.get_period(self.__last_updated, self.__get_next_time() - delta)
+
 
     def print_info(self):
         print("Currency:", self.currency_pair, "Interval:", self.interval, "Next load time:", self.__execute_time)
