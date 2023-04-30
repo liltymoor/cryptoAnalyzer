@@ -108,15 +108,15 @@ def fill_ppo(data, return_df=None):
 
     ppo_df = ppo.ppo()
     ppo_signal_df = ppo.ppo_signal()
-    data = fill_cross_signals(data, ppo_df, ppo_signal_df, 'PPO')
+    #data = fill_cross_signals(data, ppo_df, ppo_signal_df, 'PPO')
     if return_df is None:
-        data['PPO'] = ppo_df.copy()
-        data['PPO_Signal'] = ppo_signal_df.copy()
+        data['PPO'] = ppo_df['ppo']
+        data['PPO_SIGNAL'] = ppo_signal_df['ppo_signal']
     else:
         #result = pd.concat([return_df, ppo_df.copy(), ppo_signal_df], ignore_index=True)
         #result.rename(columns={'0': 'PPO', '1': 'PPO Signal'}, inplace= True)
-        return_df["PPO"] = ppo_df.copy()
-        return_df["PPO_SIGNAL"] = ppo_df.copy()
+        return_df['PPO'] = ppo_df
+        return_df['PPO_SIGNAL'] = ppo_signal_df
         return return_df
 
     return data
@@ -126,13 +126,14 @@ def fill_rsi(data, return_df=None):
     rsi = momentum.RSIIndicator(close=data['Close'])
 
     rsi_df = rsi.rsi()
-    data = fill_breakout_signals(data, rsi_df, 30, 70, 'RSI')
+    #data = fill_breakout_signals(data, rsi_df, 30, 70, 'RSI')
     if return_df is None:
         data['RSI'] = rsi_df.copy()
         return data
     else:
-        return_df['RSI'] = rsi_df.copy()
-        #result.rename({'0': 'RSI'}, inplace= True)
+        #return_df['RSI'] = rsi_df['rsi']
+        return_df['RSI'] = rsi_df
+
         return return_df
 
 

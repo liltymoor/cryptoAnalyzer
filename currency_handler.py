@@ -47,9 +47,14 @@ class CurrencyLiveCycle:
         self.interval = interval
 
         self.__df_collector = DataFrameCollector(client, pair, interval)
-        self.__df = pd.DataFrame()
+
+        #getting 1440 frames (1 day)
+        self.__df = self.__df_collector.live_collect(
+            startDate=self.__get_next_time() - timedelta(hours=12, minutes=2),
+            endDate=self.__get_next_time() - timedelta(minutes=2)
+        )
         # TODO columns to constants
-        self.__ind_df = pd.DataFrame(0, index=range(1), columns=["RSI", "PPO", "PPO_SIGNAL"])
+        self.__ind_df = pd.DataFrame({'RSI': [], 'PPO': [], 'PPO_SIGNAL': []})
         self.__last_updated = None
         self.__execute_time = self.__get_next_time()
         self.print_info()
@@ -83,7 +88,7 @@ class CurrencyLiveCycle:
     def print_info(self):
         print("Currency:", self.currency_pair, "Interval:", self.interval, "Next load time:", self.__execute_time)
         print(self.__df.to_string())
-        print(self.__ind_df)
+        print(self.__ind_df.to_string())
 
     def calculate_indicators(self):
         calc = IndicatorsCalculator(self.__df, self.__ind_df)
@@ -97,7 +102,7 @@ class IndicatorsCalculator:
     def __init__(self, df: pd.DataFrame, ind_df: pd.DataFrame):
         self.__df = df
         self.__ind_df = ind_df
-
+        self.__new_row = pd.DataFrame()
         self.__inds = ["RSI", "PPO"]
 
     async def calculate(self):
@@ -112,7 +117,7 @@ class IndicatorsCalculator:
         await asyncio.gather(
             asyncio.create_task(self.__ind_resolver(calc_q, elapsed_inds))
         )
-
+        self.__ind_df = self.__new_row
         return self.__ind_df
 
     async def __ind_resolver(self, calc_q, completed):
@@ -121,6 +126,6 @@ class IndicatorsCalculator:
             # fetching the indicator to calculate from queue
             # 0 always means that there will be a function to fill the indicators value
             # at some points it can be None.
-            self.__ind_df = INDICATORS_VOCABULARY[indicator][0](self.__df, self.__ind_df)
+            self.__new_row = INDICATORS_VOCABULARY[indicator][0](self.__df, self.__new_row)
             completed[0] += 1
 

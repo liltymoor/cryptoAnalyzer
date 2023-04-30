@@ -728,7 +728,6 @@ TSI_Signal_Period = 13
 
 
 DF_COLUMNS = [
-    'Open Time',
     'Open',
     'High',
     'Low',
