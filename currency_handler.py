@@ -2,6 +2,9 @@ import asyncio
 
 
 from datetime import datetime, timedelta
+
+import aiohttp
+
 from table_imports import pd
 from binance_imports import Client
 from dataframe_handler import DataFrameCollector
@@ -17,9 +20,10 @@ class LiveCycler:
         self.currencies = []
         self.interval_loop = 0.01
         self.signal = signal
+        self.session: aiohttp.ClientSession = None
 
         for pair, interval in currency_set:
-            self.currencies.append(CurrencyLiveCycle(self.client, pair, interval))
+            self.currencies.append(CurrencyLiveCycle(self.client, pair, interval, self.session))
 
 
 
@@ -27,30 +31,36 @@ class LiveCycler:
         self.interval_loop = interval
 
     def add_currency(self, pair, interval):
-        self.currencies.append(CurrencyLiveCycle(self.client, pair, interval))
+        # this one returns currency to notify whenever it will be updated
+        self.currencies.append(CurrencyLiveCycle(self.client, pair, interval, self.session))
+        return self.currencies[-1]
+    async def setup_async_session(self):
+        self.session = aiohttp.ClientSession()
 
-    def live_loop(self):
+    async def live_loop(self):
         for currency in self.currencies:
-            currency.check_lost_frames()
+            #currency.check_lost_frames()
             if datetime.now() >= currency.get_exec_time():
-                currency.get_live()
-                #currency.calculate_indicators()
+                await currency.get_live()
+                #currency.calculate_indicators() #TODO refactor
                 currency.print_info()
                 self.signal.emit(currency.get_dataframes())
 
 
 
-class CurrencyLiveCycle:
-    def __init__(self, client: Client, pair: str, interval: str):
+class CurrencyLiveCycle(QtCore.QObject):
+    updated = QtCore.pyqtSignal(pd.DataFrame)
+    def __init__(self, client: Client, pair: str, interval: str, session: aiohttp.ClientSession):
+        super(CurrencyLiveCycle,self).__init__()
         self.__binance_client = client
 
         self.currency_pair = pair
         self.interval = interval
 
-        self.__df_collector = DataFrameCollector(client, pair, interval)
+        self.__df_collector = DataFrameCollector(client, pair, session, interval)
 
         #getting 1440 frames (1 day)
-        self.__df = self.__df_collector.live_collect(
+        self.__df = self.__df_collector.collect(
             self.interval,
             startDate=self.__get_next_time() - timedelta(hours=12, minutes=2),
             endDate=self.__get_next_time() - timedelta(minutes=2)
@@ -80,13 +90,11 @@ class CurrencyLiveCycle:
     def get_exec_time(self):
         return self.__execute_time
 
-    def get_live(self):
-        if self.__df is None:
-            self.__df = self.__df_collector.live_collect(self.interval)
-        else:
-            self.__df = self.__df_collector.live_collect(self.interval, live_df=self.__df)
+    async def get_live(self):
+        self.__df = await self.__df_collector.live_collect(self.interval, live_df=self.__df)
         self.__last_updated = datetime.now()
         self.valid_time()
+        self.updated.emit(self.__df)
 
     def get_period(self, period_start: datetime, period_end: datetime):
         self.__df = self.__df_collector.live_collect(self.__df, period_start, period_end)
@@ -103,12 +111,13 @@ class CurrencyLiveCycle:
         if (datetime.now() - self.__last_updated) > delta:
             print("Lost frames were found. Fetching them")
             self.get_period(self.__last_updated, self.__get_next_time() - delta)
+            self.updated.emit(self.__df)
 
 
     def print_info(self):
         print("Currency:", self.currency_pair, "Interval:", self.interval, "Next load time:", self.__execute_time)
-        print(self.__df.to_string())
-        print(self.__ind_df.to_string())
+        #print(self.__df.to_string())
+        #print(self.__ind_df.to_string())
 
     def calculate_indicators(self):
         calc = IndicatorsCalculator(self.__df, self.__ind_df)
@@ -116,6 +125,10 @@ class CurrencyLiveCycle:
 
     def get_dataframes(self):
         return (self.__df, self.__ind_df)
+
+    def window_created(self):
+        # called once, when the window init complete
+        self.updated.emit(self.__df)
 
 
 class IndicatorsCalculator:

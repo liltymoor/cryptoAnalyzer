@@ -2,9 +2,9 @@ import time
 
 from PyQt6.QtCore import QObject
 from PyQt6 import QtCore
-
 import requests
-
+import asyncio
+import aiohttp
 
 from currency_handler import LiveCycler, CurrencyLiveCycle
 
@@ -30,18 +30,23 @@ class QPairFetcher(QObject):
 class QBinanceDfFetcher(QObject):
     progress = QtCore.pyqtSignal(tuple)
 
-    def __init__(self, client, pairs):
+    def __init__(self, client):
         super(QBinanceDfFetcher, self).__init__()
         self.cycler = LiveCycler(client, "", self.progress)
-        self.currencies = pairs
+
+
+    async def __loop(self):
+        await self.cycler.setup_async_session()
+        while True:
+            await self.cycler.live_loop()
+            await asyncio.sleep(self.cycler.interval_loop)
 
     def start_fetching(self):
-        while True:
-            self.cycler.live_loop()
-            time.sleep(self.cycler.interval_loop)
+        asyncio.run(self.__loop())
 
     def add_pair(self, pair: str, interval: str):
-        self.cycler.add_currency(pair, interval)
+        # this one passes the currency from creator to sender
+        return self.cycler.add_currency(pair, interval)
 
     def get_currencies_list(self):
         return self.cycler.currencies

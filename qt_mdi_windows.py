@@ -1,10 +1,15 @@
+import bokeh.plotting
+from bokeh.resources import CDN
+
 from qt_imports import *
 from currency_handler import LiveCycler, CurrencyLiveCycle, IndicatorsCalculator
-from constants import INDICATORS_VOCABULARY_NAMES, \
-SELECTION_DIALOG_WIDTH, SELECTION_DIALOG_HEIGHT, BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM, BOKEH_SUBWINDOW_MINIMUM_HEIGHT, BOKEH_SUBWINDOW_MINIMUM_WIDTH
-
+from constants import *
+from pandas import DataFrame as DF
+from pandas import to_datetime
+from datetime import datetime
 from bokeh.plotting import curdoc, figure, show
 from bokeh.embed import file_html
+from bokeh.models import WheelZoomTool, PanTool, HoverTool, ColumnDataSource
 
 
 class MdiWidget(QWidget):
@@ -40,7 +45,7 @@ class MdiWidget(QWidget):
 
     def mouseMoveEvent(self, eventArgs: QtGui.QMouseEvent) -> None:
         difference = eventArgs.pos() - self.startPos
-        print(eventArgs.scenePosition().toPoint())
+        #print(eventArgs.scenePosition().toPoint())
         if self.isDragging:
             newPos = self.parent().pos()
             point = eventArgs.scenePosition().toPoint()
@@ -200,6 +205,7 @@ class CurrencyBokehWindow(MdiWidget):
         super(CurrencyBokehWindow, self).__init__(parent)
         self.setParent(parent)
         self.currency = currency
+        currency.updated.connect(self.BOKEH_update)
 
         self.bokehWidget = QWebEngineView()
         self.bokehWidget.setMouseTracking(True)
@@ -209,6 +215,12 @@ class CurrencyBokehWindow(MdiWidget):
 
         self.close.clicked.connect(parent.close)
         self.setMouseTracking(True)
+
+        self.plot_x = BOKEH_PLOT_DEFAULT_X - BOKEH_X_PADDING_BETWEEN_SUBWINDOW
+        self.plot_y = BOKEH_PLOT_DEFAULT_Y - BOKEH_Y_PADDING_BETWEEN_SUBWINDOW
+
+        self.currentBokehObject: bokeh.plotting.Figure = None
+        currency.window_created()
 
 
     # ========================================================================
@@ -221,21 +233,64 @@ class CurrencyBokehWindow(MdiWidget):
     # ===========================Over methods=================================
     # ========================================================================
 
-    def drawBokeh(self):
-        df, ind_df = self.currency.get_dataframes()
+    def BOKEH_update(self, df: DF):
+        print("Redraw")
+        self.drawBokeh(df)
+        pass
 
+    def drawBokeh(self, df: DF):
         curdoc().theme = 'caliber'
-        x = [df["Close"]]
-        p = figure(title='CryptoAnalyzer', width=300, height=300)
-        #p.line(x, y)
-        #p.line(x, y2)
-        #html = file_html(p, CDN, "plotik")
 
-        self.bokehWidget.setHtml()
+        src = ColumnDataSource(data=dict(
+            x=df.index.values.tolist(),
+            y=df["Close"].values.tolist(),
+            date=[to_datetime(date, unit='ns') for date in df.index.values.tolist()])
+        )
+
+        #tools
+        hoverTool = HoverTool(
+            tooltips=[
+                ('date',   '@date{%F %T}'),
+                ('close',  '$@y{%0.4f}')
+            ],
+
+            formatters={
+                '@date': 'datetime',
+                '@y': 'printf',
+            },
+
+            mode='vline'
+        )
+
+        self.currentBokehObject = figure(
+                title=self.currency.currency_pair,
+                plot_width=self.plot_x, plot_height=self.plot_y,
+                x_axis_label='Time', y_axis_label='Value',
+                tools=["pan", "wheel_zoom", hoverTool, "reset"],
+                active_drag="pan",
+                active_scroll="wheel_zoom")
+        self.currentBokehObject.line('x', 'y', source=src)
+
+
+        #circle = p.circle(x, y, fill_color="gray", size=2)
+
+        #p.axis.minor_tick_in = -3
+        #p.axis.minor_tick_out = 6
+
+        self.updateWidget_html()
 
     def resizeWidget(self, newWidth, newHeight):
         super(CurrencyBokehWindow, self).resizeWidget(newWidth, newHeight)
-        self.bokehWidget.setZoomFactor(newWidth / BOKEH_SUBWINDOW_MINIMUM_WIDTH)
+        self.plot_x = newWidth - BOKEH_X_PADDING_BETWEEN_SUBWINDOW
+        self.plot_y = newHeight - BOKEH_Y_PADDING_BETWEEN_SUBWINDOW
+        self.currentBokehObject.plot_height = self.plot_x
+        self.currentBokehObject.plot_width = self.plot_y
+        self.updateWidget_html()
+
+    def updateWidget_html(self):
+        html = file_html(self.currentBokehObject, CDN, "plotik")
+        self.bokehWidget.setHtml(html)
+        #self.bokehWidget.setZoomFactor(newWidth / BOKEH_SUBWINDOW_MINIMUM_WIDTH)
 
 
 
