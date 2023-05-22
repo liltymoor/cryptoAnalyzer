@@ -9,7 +9,8 @@ from pandas import to_datetime
 from datetime import datetime
 from bokeh.plotting import curdoc, figure, show
 from bokeh.embed import file_html
-from bokeh.models import WheelZoomTool, PanTool, HoverTool, ColumnDataSource
+from bokeh import events
+from bokeh.models import WheelZoomTool, PanTool, HoverTool, ColumnDataSource, CustomJS, Div, ZoomInTool
 
 
 class MdiWidget(QWidget):
@@ -32,19 +33,19 @@ class MdiWidget(QWidget):
         self.cursor = 9
 
         self.close.clicked.connect(parent.close)
-        self.setMouseTracking(True)
+        #self.setMouseTracking(True)
 
     # ========================================================================
     # ===================Overloaded events of widget==========================
     # ========================================================================
 
-    def eventFilter(self, object: 'QObject', event: 'QEvent') -> bool:
-        if event.type() is QEvent.Type.MouseMove:
-            self.setCursorByBorder(self.mainLayout, event.pos())
-        return super(MdiWidget, self).eventFilter(object, event)
+    # def eventFilter(self, object: 'QObject', event: 'QEvent') -> bool:
+    #     if event.type() is QEvent.Type.MouseMove:
+    #         self.setCursorByBorder(self.mainLayout, event.pos())
+    #     return super(MdiWidget, self).eventFilter(object, event)
 
     def mouseMoveEvent(self, eventArgs: QtGui.QMouseEvent) -> None:
-        difference = eventArgs.pos() - self.startPos
+        # difference = eventArgs.pos() - self.startPos
         #print(eventArgs.scenePosition().toPoint())
         if self.isDragging:
             newPos = self.parent().pos()
@@ -53,28 +54,20 @@ class MdiWidget(QWidget):
             self.parent().move(newPos)
             self.startPos = point
 
-        if self.isResizing:
-            self.resizeByCursor(eventArgs)
-        else:
-            self.cursor = self.setCursorByBorder(self.mainLayout, eventArgs.pos())
+        # if self.isResizing:
+        #     self.resizeByCursor(eventArgs)
+        # else:
+        #     self.cursor = self.setCursorByBorder(self.mainLayout, eventArgs.pos())
         return super(MdiWidget, self).mouseMoveEvent(eventArgs)
 
     def mouseReleaseEvent(self, eventArgs: QtGui.QMouseEvent) -> None:
         if self.isDragging:
             self.isDragging = False
-        if self.isResizing:
-            self.isResizing = False
-            self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
         return super(MdiWidget, self).mouseReleaseEvent(eventArgs)
 
     def mousePressEvent(self, eventArgs: QtGui.QMouseEvent) -> None:
 
-        # Code 9 means the cursor is Qt.ArrowCursor
-        if self.cursor != 9:
-            self.resizingStartPos = eventArgs.scenePosition().toPoint()
-            self.isResizing = True
-
-        elif type(self.childAt(eventArgs.pos())) is QLabel:
+        if type(self.childAt(eventArgs.pos())) is QLabel:
             if self.childAt(eventArgs.pos()).text() == "Drag":
                 self.isDragging = True
                 self.startPos = eventArgs.scenePosition().toPoint()
@@ -85,124 +78,132 @@ class MdiWidget(QWidget):
     # ===========================Over methods=================================
     # ========================================================================
 
-    def setupTheFilter(self):
-        self.bokehWidget.focusProxy().installEventFilter(self)
+    @staticmethod
+    def debug_msg(*msg):
+        print("[MDI_WIDGET]", ' '.join([str(i) for i in msg]))
 
-    def setCursorByBorder(self, object_to_check, pos):
-        rect = object_to_check.geometry()
+    # def setupTheFilter(self):
+    #     self.bokehWidget.focusProxy().installEventFilter(self)
 
-        top_left, top_right, bot_left, bot_right = \
-            (rect.topLeft(), rect.topRight(), rect.bottomLeft(), rect.bottomRight())
+    # def setCursorByBorder(self, object_to_check, pos):
+    #     rect = object_to_check.geometry()
+    #
+    #     top_left, top_right, bot_left, bot_right = \
+    #         (rect.topLeft(), rect.topRight(), rect.bottomLeft(), rect.bottomRight())
+    #
+    #     # top catch
+    #     if pos in QRect(QPoint(top_left.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                            top_left.y()),
+    #                     QPoint(top_right.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                            top_right.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
+    #         self.setCursor(QtCore.Qt.CursorShape.SizeVerCursor)
+    #         return 1
+    #
+    #     # bottom catch
+    #     elif pos in QRect(QPoint(bot_left.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                              bot_left.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM),
+    #                       QPoint(bot_right.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                              bot_right.y())):
+    #         self.setCursor(QtCore.Qt.CursorShape.SizeVerCursor)
+    #         return 2
+    #
+    #     # right catch
+    #     elif pos in QRect(QPoint(top_right.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                              top_right.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM),
+    #                       QPoint(bot_right.x(), bot_right.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
+    #         self.setCursor(QtCore.Qt.CursorShape.SizeHorCursor)
+    #         return 3
+    #
+    #     # left catch
+    #     elif pos in QRect(QPoint(top_left.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                              top_left.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM),
+    #                       QPoint(bot_left.x(),
+    #                              bot_left.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
+    #         self.setCursor(QtCore.Qt.CursorShape.SizeHorCursor)
+    #         return 4
+    #
+    #     # top_right catch
+    #     elif pos in QRect(QPoint(top_right.x(), top_right.y()),
+    #                       QPoint(top_right.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                              top_right.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
+    #         self.setCursor(QtCore.Qt.CursorShape.SizeBDiagCursor)
+    #         return 5
+    #
+    #     # bottom_left catch
+    #     elif pos in QRect(QPoint(bot_left.x(), bot_left.y()),
+    #                       QPoint(bot_left.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                              bot_left.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
+    #         self.setCursor(QtCore.Qt.CursorShape.SizeBDiagCursor)
+    #         return 6
+    #
+    #     # top_left catch
+    #     elif pos in QRect(QPoint(top_left.x(), top_left.y()),
+    #                       QPoint(top_left.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                              top_left.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
+    #         self.setCursor(QtCore.Qt.CursorShape.SizeFDiagCursor)
+    #         return 7
+    #
+    #     # bottom_right catch
+    #     elif pos in QRect(QPoint(bot_right.x(), bot_right.y()),
+    #                       QPoint(bot_right.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
+    #                              bot_right.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
+    #         self.setCursor(QtCore.Qt.CursorShape.SizeFDiagCursor)
+    #         return 8
+    #
+    #     if self.isResizing:
+    #         return self.cursor
+    #
+    #     self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+    #     return 9
 
-        # top catch
-        if pos in QRect(QPoint(top_left.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                               top_left.y()),
-                        QPoint(top_right.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                               top_right.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
-            self.setCursor(QtCore.Qt.CursorShape.SizeVerCursor)
-            return 1
+    # def resizeByCursor(self, eventArgs: QtGui.QMouseEvent):
+    #
+    #     geo = self.parent().geometry()
+    #     difference = self.startPos
+    #     current_pos = eventArgs.scenePosition().toPoint()
+    #
+    #     # bottom
+    #     if self.cursor == 2:
+    #         difference = current_pos - self.resizingStartPos
+    #         newHeight = geo.height() + difference.y()
+    #         newWidth = int(newHeight * (BOKEH_SUBWINDOW_MINIMUM_WIDTH / BOKEH_SUBWINDOW_MINIMUM_HEIGHT))
+    #         print(newHeight, newWidth, self.parent().minimumWidth(), self.parent().minimumHeight())
+    #         if newWidth > self.parent().minimumWidth() - 1 and \
+    #                 newHeight > self.parent().minimumHeight() - 1:
+    #             self.resizeWidget(newWidth, newHeight)
+    #
+    #     # bottom_right
+    #     if self.cursor == 8:
+    #         difference = current_pos - self.resizingStartPos
+    #         newWidth = geo.width() + difference.x()
+    #         newHeight = int(newWidth / (BOKEH_SUBWINDOW_MINIMUM_WIDTH / BOKEH_SUBWINDOW_MINIMUM_HEIGHT))
+    #         if newWidth > self.parent().minimumWidth() and \
+    #                 newHeight > self.parent().minimumHeight():
+    #             self.resizeWidget(newWidth, newHeight)
+    #
+    #     # bottom_left
+    #     if self.cursor == 6:
+    #         difference = self.resizingStartPos - current_pos
+    #         newWidth = geo.width() + difference.x()
+    #         newHeight = int(newWidth / (BOKEH_SUBWINDOW_MINIMUM_WIDTH / BOKEH_SUBWINDOW_MINIMUM_HEIGHT))
+    #         if newWidth > self.parent().minimumWidth() and \
+    #                 newHeight > self.parent().minimumHeight():
+    #             self.resizeWidget(newWidth, newHeight)
+    #     self.resizingStartPos = current_pos
 
-        # bottom catch
-        elif pos in QRect(QPoint(bot_left.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                                 bot_left.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM),
-                          QPoint(bot_right.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                                 bot_right.y())):
-            self.setCursor(QtCore.Qt.CursorShape.SizeVerCursor)
-            return 2
-
-        # right catch
-        elif pos in QRect(QPoint(top_right.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                                 top_right.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM),
-                          QPoint(bot_right.x(), bot_right.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
-            self.setCursor(QtCore.Qt.CursorShape.SizeHorCursor)
-            return 3
-
-        # left catch
-        elif pos in QRect(QPoint(top_left.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                                 top_left.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM),
-                          QPoint(bot_left.x(),
-                                 bot_left.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
-            self.setCursor(QtCore.Qt.CursorShape.SizeHorCursor)
-            return 4
-
-        # top_right catch
-        elif pos in QRect(QPoint(top_right.x(), top_right.y()),
-                          QPoint(top_right.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                                 top_right.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
-            self.setCursor(QtCore.Qt.CursorShape.SizeBDiagCursor)
-            return 5
-
-        # bottom_left catch
-        elif pos in QRect(QPoint(bot_left.x(), bot_left.y()),
-                          QPoint(bot_left.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                                 bot_left.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
-            self.setCursor(QtCore.Qt.CursorShape.SizeBDiagCursor)
-            return 6
-
-        # top_left catch
-        elif pos in QRect(QPoint(top_left.x(), top_left.y()),
-                          QPoint(top_left.x() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                                 top_left.y() - BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
-            self.setCursor(QtCore.Qt.CursorShape.SizeFDiagCursor)
-            return 7
-
-        # bottom_right catch
-        elif pos in QRect(QPoint(bot_right.x(), bot_right.y()),
-                          QPoint(bot_right.x() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM,
-                                 bot_right.y() + BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM)):
-            self.setCursor(QtCore.Qt.CursorShape.SizeFDiagCursor)
-            return 8
-
-        if self.isResizing:
-            return self.cursor
-
-        self.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
-        return 9
-
-    def resizeByCursor(self, eventArgs: QtGui.QMouseEvent):
-
-        geo = self.parent().geometry()
-        difference = self.startPos
-        current_pos = eventArgs.scenePosition().toPoint()
-
-        # bottom
-        if self.cursor == 2:
-            difference = current_pos - self.resizingStartPos
-            newHeight = geo.height() + difference.y()
-            newWidth = int(newHeight * (BOKEH_SUBWINDOW_MINIMUM_WIDTH / BOKEH_SUBWINDOW_MINIMUM_HEIGHT))
-            print(newHeight, newWidth, self.parent().minimumWidth(), self.parent().minimumHeight())
-            if newWidth > self.parent().minimumWidth() - 1 and \
-                    newHeight > self.parent().minimumHeight() - 1:
-                self.resizeWidget(newWidth, newHeight)
-
-        # bottom_right
-        if self.cursor == 8:
-            difference = current_pos - self.resizingStartPos
-            newWidth = geo.width() + difference.x()
-            newHeight = int(newWidth / (BOKEH_SUBWINDOW_MINIMUM_WIDTH / BOKEH_SUBWINDOW_MINIMUM_HEIGHT))
-            if newWidth > self.parent().minimumWidth() and \
-                    newHeight > self.parent().minimumHeight():
-                self.resizeWidget(newWidth, newHeight)
-
-        # bottom_left
-        if self.cursor == 6:
-            difference = self.resizingStartPos - current_pos
-            newWidth = geo.width() + difference.x()
-            newHeight = int(newWidth / (BOKEH_SUBWINDOW_MINIMUM_WIDTH / BOKEH_SUBWINDOW_MINIMUM_HEIGHT))
-            if newWidth > self.parent().minimumWidth() and \
-                    newHeight > self.parent().minimumHeight():
-                self.resizeWidget(newWidth, newHeight)
-        self.resizingStartPos = current_pos
-
-    def resizeWidget(self, newWidth, newHeight):
-        self.parent().setFixedSize(newWidth, newHeight)
-        self.parent().setMinimumSize(BOKEH_SUBWINDOW_MINIMUM_WIDTH - 1, BOKEH_SUBWINDOW_MINIMUM_HEIGHT - 1)
+    def resizeWidget(self, newSize: QtCore.QSize):
+        #self.parent().setFixedSize(newWidth, newHeight)
+        #self.parent().setMinimumSize(BOKEH_SUBWINDOW_MINIMUM_WIDTH - 1, BOKEH_SUBWINDOW_MINIMUM_HEIGHT - 1)
         # self.bokehWidget.setZoomFactor(newWidth / BOKEH_SUBWINDOW_MINIMUM_WIDTH)
+        pass
 
 
 class CurrencyBokehWindow(MdiWidget):
     def __init__(self, parent, currency: CurrencyLiveCycle):
         super(CurrencyBokehWindow, self).__init__(parent)
+        self.plot_x = parent.size().height() - BOKEH_X_PADDING_BETWEEN_SUBWINDOW
+        self.plot_y = parent.size().width() - BOKEH_Y_PADDING_BETWEEN_SUBWINDOW
+
         self.setParent(parent)
         self.currency = currency
         currency.updated.connect(self.BOKEH_update)
@@ -215,9 +216,6 @@ class CurrencyBokehWindow(MdiWidget):
 
         self.close.clicked.connect(parent.close)
         self.setMouseTracking(True)
-
-        self.plot_x = BOKEH_PLOT_DEFAULT_X - BOKEH_X_PADDING_BETWEEN_SUBWINDOW
-        self.plot_y = BOKEH_PLOT_DEFAULT_Y - BOKEH_Y_PADDING_BETWEEN_SUBWINDOW
 
         self.currentBokehObject: bokeh.plotting.Figure = None
         currency.window_created()
@@ -234,9 +232,9 @@ class CurrencyBokehWindow(MdiWidget):
     # ========================================================================
 
     def BOKEH_update(self, df: DF):
-        print("Redraw")
+        print()
+        MdiWidget.debug_msg(self.currency.currency_pair, "Redraw were forced.")
         self.drawBokeh(df)
-        pass
 
     def drawBokeh(self, df: DF):
         curdoc().theme = 'caliber'
@@ -262,15 +260,19 @@ class CurrencyBokehWindow(MdiWidget):
             mode='vline'
         )
 
-        self.currentBokehObject = figure(
+
+        self.currentBokehObject = figure (
                 title=self.currency.currency_pair,
-                plot_width=self.plot_x, plot_height=self.plot_y,
+                plot_width=self.plot_y, plot_height=self.plot_x,
                 x_axis_label='Time', y_axis_label='Value',
                 tools=["pan", "wheel_zoom", hoverTool, "reset"],
                 active_drag="pan",
-                active_scroll="wheel_zoom")
+                active_scroll="wheel_zoom",
+                y_range=(min(df["Close"].values.tolist()),max(df["Close"].values.tolist())),
+                output_backend='webgl'
+        )
+        curdoc().add_root(self.currentBokehObject)
         self.currentBokehObject.line('x', 'y', source=src)
-
 
         #circle = p.circle(x, y, fill_color="gray", size=2)
 
@@ -279,12 +281,15 @@ class CurrencyBokehWindow(MdiWidget):
 
         self.updateWidget_html()
 
-    def resizeWidget(self, newWidth, newHeight):
-        super(CurrencyBokehWindow, self).resizeWidget(newWidth, newHeight)
-        self.plot_x = newWidth - BOKEH_X_PADDING_BETWEEN_SUBWINDOW
-        self.plot_y = newHeight - BOKEH_Y_PADDING_BETWEEN_SUBWINDOW
+    def resizeWidget(self, newSize: QtCore.QSize):
+        super(CurrencyBokehWindow, self).resizeWidget(newSize)
+
+        self.plot_x = newSize.height() - BOKEH_X_PADDING_BETWEEN_SUBWINDOW
+        self.plot_y = newSize.width() - BOKEH_Y_PADDING_BETWEEN_SUBWINDOW
+
         self.currentBokehObject.plot_height = self.plot_x
         self.currentBokehObject.plot_width = self.plot_y
+
         self.updateWidget_html()
 
     def updateWidget_html(self):
