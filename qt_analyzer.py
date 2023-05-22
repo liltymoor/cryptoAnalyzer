@@ -3,10 +3,12 @@ import time as t
 import traceback
 from qt_imports import *
 from constants import INDICATORS_VOCABULARY_NAMES, \
-SELECTION_DIALOG_WIDTH, SELECTION_DIALOG_HEIGHT
+SELECTION_DIALOG_WIDTH, SELECTION_DIALOG_HEIGHT, BOKEH_SUBWINDOW_MINIMUM_HEIGHT, \
+BOKEH_SUBWINDOW_MINIMUM_WIDTH, BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM
+
 from qt_fetcher import QPairFetcher, QBinanceDfFetcher
 from qt_selection_dialog import *
-
+from qt_mdi_windows import CurrencyBokehWindow
 from currency_handler import *
 
 
@@ -24,6 +26,8 @@ class MainWindow(QMainWindow):
         self.leftMenu = QWidget()
         self.workspace = QWidget()
         self.mdiArea = QMdiArea()
+        self.mdiArea.setMouseTracking(True)
+
         self.client = client
 
         self.pushButton   = QPushButton()
@@ -34,6 +38,8 @@ class MainWindow(QMainWindow):
         self.pushButton_6 = QPushButton()
 
         uic.loadUi("qt_designer/main_menu.ui", self)
+
+        #self.setCentralWidget(self.mdiArea)
 
         self.pushButton_6.clicked.connect(self.openGraphSelectionDialog)
         self.isDragging = False
@@ -57,7 +63,7 @@ class MainWindow(QMainWindow):
         self.fetch_thread.start()
 
         self.binance_connector_thr = QThread()
-        self.binance_connection = QBinanceDfFetcher(self.client, self.selected_pairs)
+        self.binance_connection = QBinanceDfFetcher(self.client)
         self.selected_pairs = self.binance_connection.get_currencies_list()
         for pair in self.selected_pairs:
             self.currencies_update(pair)
@@ -94,35 +100,10 @@ class MainWindow(QMainWindow):
     # ================MDI====================
     # =======================================
 
-    def AddAreaToMdi(self):
+    def AddAreaToMdi(self, window):
         MainWindow.count = MainWindow.count + 1
-
-        sub = SubWindow(parent=self)
-        sub.setParent(self)
-
-        sub.setWindowFlag(QtCore.Qt.WindowType.FramelessWindowHint)
-        sub.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
-
-        sub.setMinimumSize(
-            BOKEH_SUBWINDOW_MINIMUM_WIDTH - 1,
-            BOKEH_SUBWINDOW_MINIMUM_HEIGHT - 1)
-        sub.setFixedSize(
-            BOKEH_SUBWINDOW_MINIMUM_WIDTH,
-            BOKEH_SUBWINDOW_MINIMUM_HEIGHT)
-
-        #sub.setMaximumSize(330, 350)
-
-        # TODO Add bokeh generation
-        #bokehW = BokehToolWindow(bokeh=self.bokeh, parent=sub)
-        #bokehW.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
-        #sub.setWidget(bokehW)
-        sub.setWindowTitle("Sub Window" + str(MainWindow.count))
-
-        self.mdiArea.addSubWindow(sub)
-        self.mdiArea.tileSubWindows()
-
-        sub.show()
-        #bokehW.setupTheFilter()
+        self.mdiArea.addSubWindow(window)
+        window.show()
 
     @classmethod
     def RemoveAreaFromMdi(cls):
@@ -144,22 +125,90 @@ class MainWindow(QMainWindow):
             SELECTION_DIALOG_HEIGHT)
         dialog.exec()
 
-    def selectiondDialog_complete(self, selected: str):
-        self.binance_connection.add_pair(selected, "1m")
-        print(self.selected_pairs)
+    def selectiondDialog_complete(self, selected_info: SelectionInformation):
+        currency = self.binance_connection.add_pair(
+            selected_info.currency,
+            "1m",
+            date_from=selected_info.date_from,
+            date_to=selected_info.date_to
+        )
+
+        sub = SubWindow(parent=self)
+        sub.setParent(self)
+
+        sub.setWindowFlag(QtCore.Qt.WindowType.FramelessWindowHint)
+        sub.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        sub.setMinimumSize(
+            BOKEH_SUBWINDOW_MINIMUM_WIDTH - 1,
+            BOKEH_SUBWINDOW_MINIMUM_HEIGHT - 1)
+        sub.setFixedSize(
+            BOKEH_SUBWINDOW_MINIMUM_WIDTH,
+            BOKEH_SUBWINDOW_MINIMUM_HEIGHT)
+        sub.setWindowTitle(selected_info.currency)
+
+        widget = CurrencyBokehWindow(sub, currency)
+        widget.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
+        sub.setWidget(widget)
+        sub.setMouseTracking(True)
+        self.AddAreaToMdi(sub)
 
 class SubWindow(QMdiSubWindow):
     def __init__(self, parent: QMainWindow):
         super(SubWindow, self).__init__()
+        self.size_grip = QSizeGrip(self)
+        self.size_grip.setVisible(False)
+        #self.size_grip.setVisible(False)
+
+        self.minimum = QtCore.QSize(
+            BOKEH_SUBWINDOW_MINIMUM_WIDTH - 1,
+            BOKEH_SUBWINDOW_MINIMUM_HEIGHT - 1)
+
+        self.size_grip.installEventFilter(self)
         self.setMouseTracking(True)
-        self.setParent(parent)
+        self.parent = parent
+
+        self.prev_pos = None
+
+    def eventFilter(self, source, event):
+        if event.type() == event.Type.MouseMove and event.buttons() == Qt.MouseButton.LeftButton:
+            if self.cursor() != QtCore.Qt.CursorShape.ArrowCursor:
+                # Calculate the new size based on the size grip position
+                new_pos = self.size_grip.mapToParent(event.pos())
+
+                # Calculate the difference in position using previous position
+                if self.prev_pos is not None:
+                    diff = new_pos - self.prev_pos
+                else:
+                    diff = QPoint(0, 0)
+                self.prev_pos = new_pos
+
+                # Calculate the new size based on the position difference
+                new_size = QtCore.QSize(self.size().width() + diff.x(), self.size().height() + diff.y())
+
+
+                # Check if the new size violates the minimum size
+                new_size = QtCore.QSize(
+                    max(new_size.width(), self.minimum.width()),
+                    max(new_size.height(), self.minimum.height()))
+
+                # Set the new size as the fixed size of the subwindow
+                self.widget().resizeWidget(new_size)
+                self.setFixedSize(new_size)
+                return True
+        elif event.type() == event.Type.MouseButtonRelease:
+            self.prev_pos = None  # Reset previous position when mouse button is released
+        return super().eventFilter(source, event)
 
     def mouseMoveEvent(self, mouseEvent: QtGui.QMouseEvent) -> None:
         super(SubWindow, self).mouseMoveEvent(mouseEvent)
 
     def close(self) -> bool:
         MainWindow.RemoveAreaFromMdi()
+        self.parent.binance_connection.remove_pair(self.widget().currency)
         super(SubWindow, self).close()
+
+
 
 def excepthook(exc_type, exc_value, exc_tb):
     tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))

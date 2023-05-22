@@ -1,3 +1,4 @@
+from datetime import datetime
 import time
 
 from PyQt6.QtCore import QObject
@@ -34,6 +35,11 @@ class QBinanceDfFetcher(QObject):
         super(QBinanceDfFetcher, self).__init__()
         self.cycler = LiveCycler(client, "", self.progress)
 
+    @staticmethod
+    def debug_msg(*msg):
+        print("[BINANCE_CONNECTION]", ' '.join([str(i) for i in msg]))
+
+
 
     async def __loop(self):
         await self.cycler.setup_async_session()
@@ -44,9 +50,27 @@ class QBinanceDfFetcher(QObject):
     def start_fetching(self):
         asyncio.run(self.__loop())
 
-    def add_pair(self, pair: str, interval: str):
+    def add_pair(self, pair: str, interval: str,
+                 date_from: datetime = None,
+                 date_to: datetime = None):
         # this one passes the currency from creator to sender
-        return self.cycler.add_currency(pair, interval)
+        currency = self.cycler.add_currency(pair, interval,
+                                            date_from=date_from, date_to=date_to)
+        print()
+        QBinanceDfFetcher.debug_msg("Pair", currency.currency_pair, "were added. New list of pairs:")
+        QBinanceDfFetcher.debug_msg("List:", [pair.currency_pair for pair in self.cycler.currencies])
+
+        return currency
+
+    def remove_pair(self, currency: CurrencyLiveCycle):
+        counter = -1
+        for pair in self.cycler.currencies:
+            counter += 1
+            if currency is pair:
+                del self.cycler.currencies[counter]
+        print()
+        QBinanceDfFetcher.debug_msg("Pair", currency.currency_pair, "were removed. New list of pairs:")
+        QBinanceDfFetcher.debug_msg([pair.currency_pair for pair in self.cycler.currencies])
 
     def get_currencies_list(self):
         return self.cycler.currencies

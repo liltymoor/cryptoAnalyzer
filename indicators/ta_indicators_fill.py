@@ -9,6 +9,7 @@ from ta import volatility
 from ta import volume
 from ta import others
 
+import constants
 from constants import *
 
 import warnings
@@ -108,10 +109,10 @@ def fill_ppo(data, return_df=None):
 
     ppo_df = ppo.ppo()
     ppo_signal_df = ppo.ppo_signal()
-    #data = fill_cross_signals(data, ppo_df, ppo_signal_df, 'PPO')
     if return_df is None:
-        data['PPO'] = ppo_df['ppo']
-        data['PPO_SIGNAL'] = ppo_signal_df['ppo_signal']
+        data = fill_cross_signals(data, ppo_df, ppo_signal_df, 'PPO')
+        data['PPO'] = ppo_df.copy()
+        data['PPO_SIGNAL'] = ppo_signal_df.copy()
     else:
         #result = pd.concat([return_df, ppo_df.copy(), ppo_signal_df], ignore_index=True)
         #result.rename(columns={'0': 'PPO', '1': 'PPO Signal'}, inplace= True)
@@ -126,8 +127,8 @@ def fill_rsi(data, return_df=None):
     rsi = momentum.RSIIndicator(close=data['Close'])
 
     rsi_df = rsi.rsi()
-    #data = fill_breakout_signals(data, rsi_df, 30, 70, 'RSI')
     if return_df is None:
+        data = fill_breakout_signals(data, rsi_df, 30, 70, 'RSI')
         data['RSI'] = rsi_df.copy()
         return data
     else:
@@ -143,11 +144,12 @@ def fill_awesome_osc(data, return_df=None):
     awesome_oscillator_df = awesome_osc.awesome_oscillator()
 
     if return_df is None:
+        data = fill_breakout_signals(data, awesome_oscillator_df, 0, 0, 'Awesome_Osc')
         data['Awesome_Osc'] = awesome_oscillator_df.copy()
     else:
         return_df['RSI'] = awesome_oscillator_df.copy()
 
-    data = fill_breakout_signals(data, awesome_oscillator_df, 0, 0, 'Awesome_Osc')
+
 
     return data
 
@@ -168,6 +170,7 @@ def fill_pvo(data, return_df=None):
     pvo_df = pvo.pvo()
     pvo_signal_df = pvo.pvo_signal()
     if return_df is None:
+        data = fill_cross_signals(data, pvo_df, pvo_signal_df, 'PVO')
         data['PVO'] = pvo_df.copy()
         data['PVO_Signal'] = pvo_signal_df.copy()
         data['PVO_Hist'] = pvo.pvo_hist().copy()
@@ -176,7 +179,7 @@ def fill_pvo(data, return_df=None):
         return_df['PVO_Signal'] = pvo_signal_df.copy()
         return_df['PVO_Hist'] = pvo.pvo_hist().copy()
 
-    data = fill_cross_signals(data, pvo_df, pvo_signal_df, 'PVO')
+
 
     return data
 
@@ -187,7 +190,6 @@ def fill_roc(data, return_df=None):
     roc_df = roc.roc()
 
     data['ROC'] = roc_df.copy()
-
     data = fill_breakout_signals(data, roc_df, 0, 0, 'ROC')
 
     return data
@@ -216,7 +218,7 @@ def fill_tsi(data):
     tsi = momentum.TSIIndicator(close=data['Close'])
 
     tsi_df = tsi.tsi()
-    ttsi_signal_df = tsi_df.ewm(span=TSI_Signal_Period, adjust=False).mean()
+    ttsi_signal_df = tsi_df.ewm(span=constants.TSI_Signal_Period, adjust=False).mean()
 
     data['TSI'] = tsi_df.copy()
     data['TSI_Signal'] = ttsi_signal_df.copy()
@@ -340,18 +342,21 @@ def fill_kst(data):
     return data
 
 
-def fill_macd(data):
+def fill_macd(data, return_df=None):
     macd = trend.MACD(data['Close'])
 
     macd_df = macd.macd()
     macd_signal_df = macd.macd_signal()
-
-    data['MACD'] = macd_df.copy()
-    data['MACD_Signal'] = macd_signal_df.copy()
-    data['MACD_Diff'] = macd.macd_diff().copy()
-
-    data = fill_cross_signals(data, macd_df, macd_signal_df, 'MACD')
-
+    if return_df is None:
+        data['MACD'] = macd_df.copy()
+        data['MACD_Signal'] = macd_signal_df.copy()
+        data['MACD_Diff'] = macd.macd_diff()
+        data = fill_cross_signals(data, macd_df, macd_signal_df, 'MACD')
+    else:
+        return_df['MACD'] = macd_df
+        return_df['MACD_SIGNAL'] = macd_signal_df
+        return_df['MACD_DIFF'] = macd.macd_diff()
+        return return_df
     return data
 
 
@@ -501,7 +506,7 @@ def fill_on_balance_volume(data):
     on_balance_volume = volume.OnBalanceVolumeIndicator(close=data['Close'], volume=data['Volume'])
 
     on_balance_volume_df = on_balance_volume.on_balance_volume()
-    on_balance_volume_signal_df = on_balance_volume_df.rolling(window=OBV_Signal_Period).mean()
+    on_balance_volume_signal_df = on_balance_volume_df.rolling(window=constants.OBV_Signal_Period).mean()
 
     data['OBV'] = on_balance_volume_df.copy()
     data['OBV_Signal'] = on_balance_volume_signal_df.copy()
@@ -512,6 +517,7 @@ def fill_on_balance_volume(data):
 
 
 def fill_acc_dist_index(data):
+
     acc_dist_index = volume.AccDistIndexIndicator(high=data['High'], low=data['Low'],
                                                   close=data['Close'], volume=data['Volume'])
 

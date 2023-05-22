@@ -741,6 +741,21 @@ DF_COLUMNS = [
     'Ignore'
 ]
 
+DF_COLUMNS_TIMED = [
+    'Open Time',
+    'Open',
+    'High',
+    'Low',
+    'Close',
+    'Volume',
+    'Close Time',
+    'Quote Asset Volume',
+    'Number of Trades',
+    'TB Base Volume',
+    'TB Quote Volume',
+    'Ignore'
+]
+
 
 DF_NUMERIC_COLUMNS = [
     'Open',
@@ -764,8 +779,8 @@ BOKEH_SUBWINDOW_MINIMUM_HEIGHT = 390
 BOKEH_PLOT_DEFAULT_X = 360
 BOKEH_PLOT_DEFAULT_Y = 400
 
-BOKEH_X_PADDING_BETWEEN_SUBWINDOW = 60
-BOKEH_Y_PADDING_BETWEEN_SUBWINDOW = 100
+BOKEH_X_PADDING_BETWEEN_SUBWINDOW = 75
+BOKEH_Y_PADDING_BETWEEN_SUBWINDOW = 35
 
 
 SELECTION_DIALOG_WIDTH = 402

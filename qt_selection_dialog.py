@@ -1,4 +1,17 @@
+import datetime
+
 from qt_imports import *
+
+class SelectionInformation:
+    def __init__(self, currency,
+                 is_live: bool,
+                 date_from: datetime.datetime,
+                 date_to: datetime.datetime):
+        self.currency = currency
+        self.is_live = is_live
+        self.date_from = date_from
+        self.date_to = date_to
+
 
 class SelectionListView(QListView):
     selected = QtCore.pyqtSignal(int)
@@ -12,10 +25,18 @@ class SelectionListView(QListView):
 
 
 class SelectionDialog(QDialog):
-    accepted = QtCore.pyqtSignal(str)
+    accepted = QtCore.pyqtSignal(SelectionInformation)
 
     def accept(self) -> None:
-        self.accepted.emit(self.selected_pair.text())
+
+        info_object = SelectionInformation(
+            self.selected_pair.text(),
+            self.isLive.checkState().value == self.isLive.checkState().Checked,
+            self.fromDate.dateTime().toPyDateTime(),
+            self.fromDate.dateTime().toPyDateTime()
+        )
+
+        self.accepted.emit(info_object)
         super().accept()
 
 
@@ -34,6 +55,8 @@ class SelectionDialog(QDialog):
         self.dialogButtons = QDialogButtonBox()
 
         uic.loadUi("qt_designer/graph_selection_dialog.ui", self)
+        self.fromDate.setDateTime(datetime.datetime.now())
+        self.toDate.setDateTime(datetime.datetime.now())
         self.indicatorsList.selected.connect(self.selectItem)
 
         self.model = QtGui.QStandardItemModel()
