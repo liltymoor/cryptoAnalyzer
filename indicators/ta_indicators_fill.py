@@ -1,16 +1,14 @@
 import numpy as np
 import pandas as pd
 
-from scipy.ndimage.interpolation import shift
-
 from ta import momentum
 from ta import trend
 from ta import volatility
 from ta import volume
 from ta import others
 
-import constants
-from constants import *
+
+
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -218,7 +216,7 @@ def fill_tsi(data):
     tsi = momentum.TSIIndicator(close=data['Close'])
 
     tsi_df = tsi.tsi()
-    ttsi_signal_df = tsi_df.ewm(span=constants.TSI_Signal_Period, adjust=False).mean()
+    ttsi_signal_df = tsi_df.ewm(span=13, adjust=False).mean()
 
     data['TSI'] = tsi_df.copy()
     data['TSI_Signal'] = ttsi_signal_df.copy()
@@ -506,7 +504,7 @@ def fill_on_balance_volume(data):
     on_balance_volume = volume.OnBalanceVolumeIndicator(close=data['Close'], volume=data['Volume'])
 
     on_balance_volume_df = on_balance_volume.on_balance_volume()
-    on_balance_volume_signal_df = on_balance_volume_df.rolling(window=constants.OBV_Signal_Period).mean()
+    on_balance_volume_signal_df = on_balance_volume_df.rolling(window=21).mean()
 
     data['OBV'] = on_balance_volume_df.copy()
     data['OBV_Signal'] = on_balance_volume_signal_df.copy()

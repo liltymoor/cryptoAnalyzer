@@ -1,6 +1,8 @@
 import datetime
+import sys
 
-from qt_imports import *
+sys.path.insert(1, "qt_python/")
+from qt_python.qt_imports import *
 
 class SelectionInformation:
     def __init__(self, currency,
@@ -54,7 +56,7 @@ class SelectionDialog(QDialog):
 
         self.dialogButtons = QDialogButtonBox()
 
-        uic.loadUi("qt_designer/graph_selection_dialog.ui", self)
+        uic.loadUi("qt_python/qt_designer/graph_selection_dialog.ui", self)
         self.fromDate.setDateTime(datetime.datetime.now())
         self.toDate.setDateTime(datetime.datetime.now())
         self.indicatorsList.selected.connect(self.selectItem)

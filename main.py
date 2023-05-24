@@ -1,15 +1,9 @@
 from binance_imports import Client, SECRET_KEY, API_KEY
-from currency_handler import CurrencyLiveCycle, LiveCycler
-import asyncio
 
-from bokeh.plotting import curdoc, figure, show
+from bokeh.plotting import curdoc, figure
 from bokeh.embed import file_html
-from bokeh.resources import JS_RESOURCES, CDN, JSResources
-from qt_analyzer import loadMain
-
-import random
-import asyncio
-import aiohttp
+from bokeh.resources import CDN
+from qt_python.qt_analyzer import loadMain
 
 global client
 client = Client(API_KEY, SECRET_KEY)

@@ -7,7 +7,7 @@ import aiohttp
 
 from table_imports import pd
 from binance_imports import Client
-from dataframe_handler import DataFrameCollector
+from data.dataframe_handler import DataFrameCollector
 from constants import INDICATORS_VOCABULARY
 from indicators.ta_indicators_fill import *
 from PyQt6 import QtCore

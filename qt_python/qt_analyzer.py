@@ -1,15 +1,13 @@
 import sys
 import time as t
 import traceback
-from qt_imports import *
-from constants import INDICATORS_VOCABULARY_NAMES, \
-SELECTION_DIALOG_WIDTH, SELECTION_DIALOG_HEIGHT, BOKEH_SUBWINDOW_MINIMUM_HEIGHT, \
-BOKEH_SUBWINDOW_MINIMUM_WIDTH, BOKEH_SUBWINDOW_CURSOR_RESIZE_PARAM
 
-from qt_fetcher import QPairFetcher, QBinanceDfFetcher
-from qt_selection_dialog import *
-from qt_mdi_windows import CurrencyBokehWindow
-from currency_handler import *
+from constants import BOKEH_SUBWINDOW_MINIMUM_WIDTH, BOKEH_SUBWINDOW_MINIMUM_HEIGHT, SELECTION_DIALOG_WIDTH, \
+    SELECTION_DIALOG_HEIGHT
+from qt_python.qt_fetcher import QPairFetcher, QBinanceDfFetcher
+from qt_python.qt_selection_dialog import *
+from qt_python.qt_mdi_windows import CurrencyBokehWindow
+from data.currency_handler import *
 
 
 class MainWindow(QMainWindow):
@@ -37,7 +35,7 @@ class MainWindow(QMainWindow):
         self.pushButton_5 = QPushButton()
         self.pushButton_6 = QPushButton()
 
-        uic.loadUi("qt_designer/main_menu.ui", self)
+        uic.loadUi("qt_python/qt_designer/main_menu.ui", self)
 
         #self.setCentralWidget(self.mdiArea)
 

@@ -8,7 +8,7 @@ from exceptions import LoadDataframeBinanceException
 from binance_imports import Client
 from table_imports import *
 
-from currency_region_loader import RegionController
+from data.currency_region_loader import RegionController
 
 from datetime import *
 import time
@@ -27,7 +27,8 @@ class DataFrameCollector:
 
     async def __binance_df(self, stock, interval, startDate: datetime = None, endDate: datetime = None):
         # Getting UTC format time
-        now = datetime.utcnow()
+        #now = datetime.utcnow()
+
         # TODO через некоторое время подчистить не нужные комменты
 
         # Getting last updates from binance client
@@ -211,6 +212,7 @@ class DataFrameCollector:
         period_delta = end_date - start_date
 
         # if period is more than 1 day we re using special class
+        start = datetime.now()
         if (int(period_delta.seconds / 60)) > 720:
             region = RegionController(self, interval, start_date, end_date)
             region_df = None
@@ -218,7 +220,7 @@ class DataFrameCollector:
             for i in range(remain_iters):
                 next_region_df = region.next()
                 region_df = pd.concat([region_df, next_region_df], ignore_index=False)
-
+            print((datetime.now() - start).total_seconds())
             return region_df
 
         df = self.binance_big_df_collect(interval, start_date, end_date)

@@ -1,13 +1,11 @@
 from datetime import datetime
-import time
 
 from PyQt6.QtCore import QObject
 from PyQt6 import QtCore
 import requests
 import asyncio
-import aiohttp
 
-from currency_handler import LiveCycler, CurrencyLiveCycle
+from data.currency_handler import LiveCycler, CurrencyLiveCycle
 
 class QPairFetcher(QObject):
     finished = QtCore.pyqtSignal(list)
@@ -43,9 +41,11 @@ class QBinanceDfFetcher(QObject):
 
     async def __loop(self):
         await self.cycler.setup_async_session()
+
         while True:
             await self.cycler.live_loop()
             await asyncio.sleep(self.cycler.interval_loop)
+
 
     def start_fetching(self):
         asyncio.run(self.__loop())
