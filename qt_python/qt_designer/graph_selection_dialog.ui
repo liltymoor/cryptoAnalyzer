@@ -53,6 +53,9 @@
    </property>
   </widget>
   <widget class="QDateTimeEdit" name="toDate">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="geometry">
     <rect>
      <x>250</x>
@@ -76,6 +79,9 @@
    </property>
   </widget>
   <widget class="QLabel" name="toLabel">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="geometry">
     <rect>
      <x>210</x>
@@ -89,6 +95,9 @@
    </property>
   </widget>
   <widget class="QCheckBox" name="isLive">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="geometry">
     <rect>
      <x>220</x>
@@ -105,6 +114,9 @@
    </property>
   </widget>
   <widget class="QTextEdit" name="textEdit">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -115,6 +127,9 @@
    </property>
   </widget>
   <widget class="QLabel" name="search_label">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="geometry">
     <rect>
      <x>12</x>
