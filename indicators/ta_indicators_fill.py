@@ -108,9 +108,9 @@ def fill_ppo(data, return_df=None):
     ppo_df = ppo.ppo()
     ppo_signal_df = ppo.ppo_signal()
     if return_df is None:
-        data = fill_cross_signals(data, ppo_df, ppo_signal_df, 'PPO')
         data['PPO'] = ppo_df.copy()
         data['PPO_SIGNAL'] = ppo_signal_df.copy()
+        data = fill_cross_signals(data, ppo_df, ppo_signal_df, 'PPO')
     else:
         #result = pd.concat([return_df, ppo_df.copy(), ppo_signal_df], ignore_index=True)
         #result.rename(columns={'0': 'PPO', '1': 'PPO Signal'}, inplace= True)
@@ -126,8 +126,8 @@ def fill_rsi(data, return_df=None):
 
     rsi_df = rsi.rsi()
     if return_df is None:
-        data = fill_breakout_signals(data, rsi_df, 30, 70, 'RSI')
         data['RSI'] = rsi_df.copy()
+        data = fill_breakout_signals(data, rsi_df, 30, 70, 'RSI')
         return data
     else:
         #return_df['RSI'] = rsi_df['rsi']
@@ -142,10 +142,10 @@ def fill_awesome_osc(data, return_df=None):
     awesome_oscillator_df = awesome_osc.awesome_oscillator()
 
     if return_df is None:
-        data = fill_breakout_signals(data, awesome_oscillator_df, 0, 0, 'Awesome_Osc')
         data['Awesome_Osc'] = awesome_oscillator_df.copy()
+        data = fill_breakout_signals(data, awesome_oscillator_df, 0, 0, 'Awesome_Osc')
     else:
-        return_df['RSI'] = awesome_oscillator_df.copy()
+        return_df['Awesome_Osc'] = awesome_oscillator_df.copy()
 
 
 
@@ -168,10 +168,10 @@ def fill_pvo(data, return_df=None):
     pvo_df = pvo.pvo()
     pvo_signal_df = pvo.pvo_signal()
     if return_df is None:
-        data = fill_cross_signals(data, pvo_df, pvo_signal_df, 'PVO')
         data['PVO'] = pvo_df.copy()
         data['PVO_Signal'] = pvo_signal_df.copy()
         data['PVO_Hist'] = pvo.pvo_hist().copy()
+        data = fill_cross_signals(data, pvo_df, pvo_signal_df, 'PVO')
     else:
         return_df['PVO'] = pvo_df.copy()
         return_df['PVO_Signal'] = pvo_signal_df.copy()

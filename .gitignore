@@ -1,0 +1,5 @@
+
+strategies/*
+currency_tester/__pycache__
+currency_tester/exported_info/csv/*
+currency_tester/exported_info/db/*

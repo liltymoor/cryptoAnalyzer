@@ -1,15 +1,12 @@
-import bokeh.plotting
-from bokeh.resources import CDN
 
+from PyQt6.QtWidgets import QHBoxLayout
+
+import pyqtgraph as pg
 from qt_python.qt_imports import *
 from data.currency_handler import LiveCycler, CurrencyLiveCycle, IndicatorsCalculator
 from constants import *
-from pandas import DataFrame as DF
-from pandas import to_datetime
-from bokeh.plotting import curdoc, figure
-from datetime import datetime
-from bokeh.embed import file_html
-from bokeh.models import HoverTool, ColumnDataSource
+import numpy as np
+import pandas as pd
 
 
 class MdiWidget(QWidget):
@@ -92,112 +89,146 @@ class MdiWidget(QWidget):
 
 class CurrencyBokehWindow(MdiWidget):
     def __init__(self, parent, currency: CurrencyLiveCycle):
-        super(CurrencyBokehWindow, self).__init__(parent, isInherit=True)
-        self.plot_x = parent.size().height() - BOKEH_X_PADDING_BETWEEN_SUBWINDOW
-        self.plot_y = parent.size().width() - BOKEH_Y_PADDING_BETWEEN_SUBWINDOW
+        super(CurrencyBokehWindow, self).__init__(parent)
 
         self.setParent(parent)
         self.currency = currency
-        currency.updated.connect(self.BOKEH_update)
-
-        self.bokehWidget = QWebEngineView()
-        self.bokehWidget.setMouseTracking(True)
+        currency.updated.connect(self.PYQTGRAPH_update)
+        self.horizontalLayout = QHBoxLayout()
         uic.loadUi("qt_python/qt_designer/bokeh_tool.ui", self)
-
-        #self.bokehWidget.setHtml(bokeh)
-
         self.close.clicked.connect(parent.close)
         self.setMouseTracking(True)
 
-        self.currentBokehObject: bokeh.plotting.Figure = None
-        self.xmax = None
-        self.xmin = None
-        self.ymax = None
-        self.ymin = None
+        self.plotWidget = pg.PlotWidget(background='w')
+        self.setLayout(QVBoxLayout())
+
+
+        self.horizontalLayout.setContentsMargins(0,10,0,0)
+        self.horizontalLayout.addWidget(self.plotWidget)
+        self.plotWidget.getAxis('bottom').setPen('k')
+        self.plotWidget.getAxis('left').setPen('k')
+
+        font = QtGui.QFont()
+        font.setPixelSize(15)
+        self.plotWidget.getAxis('bottom').tickFont = font
+        self.plotWidget.getAxis('left').tickFont = font
+
+        self.plotWidget.showGrid(x=True, y=True, alpha=0.5)
+
+        self.plotWidget.setLabel('left', 'Close Price', color='black', size=15)
+        self.plotWidget.setLabel('bottom', 'Index', color='black', size=15)
+        self.plotWidget.setTitle(currency.currency_pair, color='black', size='20pt')
+
+        self.infoWindow = QLabel()
+        self.infoWindow.setStyleSheet("QLabel { background-color : white; color : black; }")
+        self.infoWindow.setWindowFlags(
+            Qt.WindowType.ToolTip |
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowTransparentForInput
+        )
+        self.infoWindow.setWindowOpacity(0.8)
+        self.infoWindow.hide()
+
+        self.point_pos = [None, None]
+
+        self.plotWidget.scene().sigMouseMoved.connect(self.mouseMoved)
+
+        self.scatterPlot = pg.ScatterPlotItem()
+
+        self.plotWidget.addItem(self.scatterPlot)
         currency.window_created()
 
+    def PYQTGRAPH_update(self, df: pd.DataFrame):
+        self.current_df = df.copy()
+        self.drawPyQtGraph(df)
 
-    # ========================================================================
-    # ===================Overloaded events of widget==========================
-    # ========================================================================
+    def drawPyQtGraph(self, df: pd.DataFrame):
+        if df is None:
+            return
 
+        self.plotWidget.clear()
+        pen = pg.mkPen(color='#1f77b4', width=2)
+        self.plotWidget.plot(np.arange(1, len(df) + 1), df["Close"],
+                             pen=pen)
 
+        if None not in self.point_pos:
+            self.plotWidget.removeItem(self.scatterPlot)
 
-    # ========================================================================
-    # ===========================Over methods=================================
-    # ========================================================================
+            pen = pg.mkPen(color='#FF5B1E')
+            scatter = pg.ScatterPlotItem()
+            scatter.addPoints([self.point_pos[0]], [self.point_pos[1]],
+                              symbol='o', pen=pen, brush='#FF5B1E', size=4)
+            self.plotWidget.addItem(scatter)
+            self.scatterPlot = scatter
 
-    def BOKEH_update(self, df: DF):
-        print()
-        MdiWidget.debug_msg(self.currency.currency_pair, "Redraw were forced.")
-        self.drawBokeh(df)
+    def addPoint(self):
+        new_date = self.current_df.index[-1] + pd.DateOffset(days=1)
+        new_value = np.random.randn()
+        new_point = pd.DataFrame(
+            {"Close": new_value},
+            index=[new_date])
 
+        self.current_df = pd.concat([self.current_df, new_point])
 
-    def drawBokeh(self, df: DF):
-        curdoc().theme = 'caliber'
+        self.drawPyQtGraph(self.current_df)
 
-        src = ColumnDataSource(data=dict(
-            x=df.index,
-            y=df["Close"],
-            date=[to_datetime(date, unit='ns') for date in df.index.values.tolist()])
-        )
+    def showInfoWindow(self, x, y):
+        self.infoWindow.setText(f"Date: {x}\nY: {y}")
+        mouse_pos = QtGui.QCursor.pos()
+        window_pos = mouse_pos + QtCore.QPoint(15, 15)
+        self.infoWindow.move(window_pos)
+        self.infoWindow.show()
 
-        #tools
-        hoverTool = HoverTool(
-            tooltips=[
-                ('date',   '@date{%F %T}'),
-                ('close',   self.currency.currency_pair + ' @y{%0.4f}')
-            ],
+    def hideInfoWindow(self):
+        self.infoWindow.hide()
 
-            formatters={
-                '@date': 'datetime',
-                '@y': 'printf',
-            },
+    def mouseMoved(self, pos):
+        if self.current_df is None:
+            return
 
-            mode='vline'
-        )
+        mousePoint = self.plotWidget.plotItem.vb.mapSceneToView(pos)
+        index = int(mousePoint.x())
+        if 0 <= index < len(self.current_df):
+            x = self.current_df.index[index].strftime('%Y-%m-%d %H:%M')
+            y = self.current_df.iloc[index]['Close']
+            self.showInfoWindow(x, y)
 
+            self.plotWidget.removeItem(self.scatterPlot)
 
-        self.currentBokehObject = figure (
-                title=self.currency.currency_pair,
-                plot_width=self.plot_y, plot_height=self.plot_x,
-                x_axis_label='Time', y_axis_label='Value',
-                x_axis_type='datetime',
-                tools=["pan", "wheel_zoom", hoverTool, "reset"],
-                active_drag="pan",
-                active_scroll="wheel_zoom",
-                x_range=(min(df.index), max(df.index)),
-                y_range=(min(df["Close"].values.tolist()), max(df["Close"].values.tolist())),
-                output_backend='webgl'
-        )
+            pen = pg.mkPen(color='r')
+            scatter = pg.ScatterPlotItem()
+            scatter.addPoints([index + 1], [y], symbol='o', pen=pen, brush='r', size=4)
+            self.plotWidget.addItem(scatter)
+            self.scatterPlot = scatter
 
-        curdoc().add_root(self.currentBokehObject)
-        self.currentBokehObject.line('x', 'y', source=src)
+            self.point_pos = [index + 1, y]
 
-        #circle = p.circle(x, y, fill_color="gray", size=2)
+        else:
+            self.hideInfoWindow()
 
-        #p.axis.minor_tick_in = -3
-        #p.axis.minor_tick_out = 6
+    def handleApplicationStateChanged(self, state):
+        if state == QtCore.Qt.WindowMinimized:
+            self.hideInfoWindow()
 
-        self.updateWidget_html()
+    def windowStateChanged(self, event):
+        if event.oldState() == Qt.WindowNoState and event.newState() == Qt.WindowMinimized:
+            self.hideInfoWindow()
 
-    def resizeWidget(self, newSize: QtCore.QSize):
-        super(CurrencyBokehWindow, self).resizeWidget(newSize)
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.WindowStateChange and self.isMinimized():
+            self.hideInfoWindow()
+        super(CurrencyBokehWindow, self).changeEvent(event)
 
-        self.plot_x = newSize.height() - BOKEH_X_PADDING_BETWEEN_SUBWINDOW
-        self.plot_y = newSize.width() - BOKEH_Y_PADDING_BETWEEN_SUBWINDOW
+    def resizeEvent(self, event):
+        super(CurrencyBokehWindow, self).resizeEvent(event)
+        self.drawPyQtGraph(self.current_df)
 
-        self.currentBokehObject.plot_height = self.plot_x
-        self.currentBokehObject.plot_width = self.plot_y
-    
-        self.updateWidget_html()
+    def leaveEvent(self, event):
+        self.hideInfoWindow()
+        event.ignore()
 
-
-    def updateWidget_html(self):
-        html = file_html(self.currentBokehObject, CDN, "plotik")
-        self.bokehWidget.setHtml(html)
-        #self.bokehWidget.setZoomFactor(newWidth / BOKEH_SUBWINDOW_MINIMUM_WIDTH)
-
-
+    def closeEvent(self, event):
+        self.hideInfoWindow()
+        super(CurrencyBokehWindow, self).closeEvent(event)
 
 

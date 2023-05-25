@@ -9,11 +9,12 @@ import subprocess
 from observe_flow_csv import combine_to_csv
 from subprocess import Popen, PIPE
 import gc
+from dateutil.relativedelta import relativedelta
 
 
 if argv[1] == "--help":
     print("python observe_currency.py <stock> <timeframe> <timestamp> <flows_num>")
-    print("Example of using:\n\tpython observe_currency.py BTCUSDT 1m 1640995200 32")
+    print("Example of using:\n\tpython observe_currency.py BTCUSDT 1m 1640984400 32")
     print()
     print("stock - currency that you want to test")
     print("timeframe - time interval for your currency")
@@ -29,9 +30,9 @@ flow_count = int(argv[4]) # e.g. 16
 
 
 def month_exporter(relative_date: datetime, current_month: int):
-    date_to = relative_date + timedelta(days=30)
+    date_to = relative_date + relativedelta(months=1)
     date_delta = (date_to - relative_date) / flow_count
-
+    print(relative_date, date_to)
     start_pass = 78 * timeframes[timeframe]
     end_pass = 26 * timeframes[timeframe]
 
@@ -81,7 +82,7 @@ def main():
     relative_month = date_from
     for month in range(12):
         month_exporter(relative_month, month)
-        relative_month = relative_month + timedelta(days=30)
+        relative_month = relative_month + relativedelta(months=1)
         gc.collect()
 
 

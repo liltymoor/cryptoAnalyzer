@@ -1,3 +1,6 @@
+import pickle
+import sys
+
 from binance_imports import Client
 from table_imports import *
 
@@ -20,7 +23,7 @@ class RegionController:
     def get_remaining(self):
         remaining = self.endDate - self.currentRegionPointer
         # converting remaining time to days
-        remaining_days = ((remaining.total_seconds() / 60) / 720)
+        remaining_days = ((remaining.total_seconds() / 60) / 1000)
         # if remaining days is like integer (e.g. 1, 2, 3)
 
         if floor(remaining_days) == remaining_days:
@@ -29,25 +32,22 @@ class RegionController:
             #if its not so we keep one extra iteration
             return floor(remaining_days) + 1
 
+    def get_df_piece(self, start_date, end_date):
+        period = (end_date - start_date).total_seconds()
 
-    def next(self):
-        period = (self.endDate - self.currentRegionPointer).total_seconds()
-        region_piece = None
-        if 1 > (period / 60 / 720) > 0:
+        if 1 > (period / 60 / 1000) > 0:
             region_piece = self.collector.collect(
                 self.interval,
-                startDate=self.currentRegionPointer,
-                endDate=self.currentRegionPointer + timedelta(seconds=period)
+                startDate=start_date,
+                endDate=start_date + timedelta(seconds=period)
             )
-            self.currentRegionPointer += timedelta(seconds=period)
+
         else:
-            print(self.currentRegionPointer, self.currentRegionPointer + timedelta(hours=12))
+
             region_piece = self.collector.collect(
                 self.interval,
-                startDate=self.currentRegionPointer,
-                endDate=self.currentRegionPointer + timedelta(hours=12)
+                startDate=start_date,
+                endDate=start_date + timedelta(hours=16, minutes=40)
             )
-            self.currentRegionPointer += timedelta(hours=12)
 
         return region_piece
-
