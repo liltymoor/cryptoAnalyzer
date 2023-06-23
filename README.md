@@ -4,6 +4,7 @@
 При тестировании я столкнулся со следующей проблемой - библиотека PyQt6.QtWebEngineWidgets при установке вызывает проблемы, якобы отсутствует DLL. 
 Чтобы корректно установить все библиотеки, я использовал вот это решение https://github.com/ContinuumIO/anaconda-issues/issues/10079 .
 Удалил текущие библиотеки и установил заново с флагом --upgrade
+```
 pip uninstall pyqt5
 pip uninstall pyqt5
 pip uninstall PyQt6-WebEngine-Qt6
@@ -13,7 +14,7 @@ pip install --upgrade pyqt5
 pip install --upgrade pyqt6
 pip install --upgrade PyQt6-WebEngine-Qt6
 pip install --upgrade PyQt6-WebEngine
-
+```
 # Краткое описание проекта
 
 Утилита без названия, написанная на Python и C++.
