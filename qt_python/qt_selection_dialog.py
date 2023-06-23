@@ -57,6 +57,7 @@ class SelectionDialog(QDialog):
         self.dialogButtons = QDialogButtonBox()
 
         uic.loadUi("qt_python/qt_designer/graph_selection_dialog.ui", self)
+        self.dialogButtons.button(self.dialogButtons.StandardButton.Ok).setEnabled(False)
         self.fromDate.setDateTime(datetime.datetime.now())
         self.toDate.setDateTime(datetime.datetime.now())
         self.indicatorsList.selected.connect(self.selectItem)
@@ -78,6 +79,7 @@ class SelectionDialog(QDialog):
     def selectItem(self, index: int):
         if index != -1:
             self.selected_pair.setText(self.model.item(index, 0).text())
+            self.dialogButtons.button(self.dialogButtons.StandardButton.Ok).setEnabled(True)
 
 
     def selectionComplete(self, selected: str):

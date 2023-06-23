@@ -121,6 +121,12 @@ QLabel:hover
          <property name="text">
           <string>Drag</string>
          </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+         <property name="margin">
+          <number>0</number>
+         </property>
         </widget>
        </item>
        <item alignment="Qt::AlignRight|Qt::AlignTop">
@@ -184,7 +190,7 @@ QPushButton:hover
 }</string>
          </property>
          <property name="text">
-          <string>Close</string>
+          <string>     Close     </string>
          </property>
         </widget>
        </item>

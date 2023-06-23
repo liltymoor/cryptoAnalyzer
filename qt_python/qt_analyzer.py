@@ -1,4 +1,5 @@
 import sys
+import time
 import time as t
 import traceback
 
@@ -8,7 +9,7 @@ from qt_python.qt_fetcher import QPairFetcher, QBinanceDfFetcher
 from qt_python.qt_selection_dialog import *
 from qt_python.qt_mdi_windows import CurrencyBokehWindow
 from data.currency_handler import *
-
+from qt_currency_thread import LoadingBox, AddPairWorker
 
 class MainWindow(QMainWindow):
     count = 0
@@ -18,8 +19,6 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.pairs = []
         self.selected_pairs = []
-        # self.setWindowFlag(QtCore.Qt.WindowType.FramelessWindowHint)
-        # self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.leftMenu = QWidget()
         self.workspace = QWidget()
@@ -27,6 +26,7 @@ class MainWindow(QMainWindow):
         self.mdiArea.setMouseTracking(True)
 
         self.client = client
+        self.currency_thread: QThread = None
 
         self.pushButton   = QPushButton()
         self.pushButton_2 = QPushButton()
@@ -35,9 +35,12 @@ class MainWindow(QMainWindow):
         self.pushButton_5 = QPushButton()
         self.pushButton_6 = QPushButton()
 
-        uic.loadUi("qt_python/qt_designer/main_menu.ui", self)
+        self.next_update = QLabel()
+        self.current_pair = QLabel()
+        self.connection_status = QLabel()
+        self.loading_gif = QLabel()
 
-        #self.setCentralWidget(self.mdiArea)
+        uic.loadUi("qt_python/qt_designer/main_menu_new.ui", self)
 
         self.pushButton_6.clicked.connect(self.openGraphSelectionDialog)
         self.isDragging = False
@@ -123,14 +126,29 @@ class MainWindow(QMainWindow):
             SELECTION_DIALOG_HEIGHT)
         dialog.exec()
 
-    def selectiondDialog_complete(self, selected_info: SelectionInformation):
-        currency = self.binance_connection.add_pair(
-            selected_info.currency,
-            "1m",
-            date_from=selected_info.date_from,
-            date_to=selected_info.date_to
-        )
 
+    def selectiondDialog_complete(self, selected_info: SelectionInformation):
+        self.loading_box = LoadingBox(selected_info.currency)
+        self.loading_box.show()
+        QApplication.processEvents()
+
+        self.currency_thread = QThread()
+
+        worker = AddPairWorker()
+        worker.moveToThread(self.currency_thread)
+        worker.done.connect(self.addCurrencyToForm)
+        worker.close_loader.connect(self.loading_box.deleteLater)
+        worker.selected_info = selected_info
+        worker.binance_connection = self.binance_connection
+
+        self.currency_thread.started.connect(worker.calc)
+        self.currency_thread.start()
+        QApplication.processEvents()
+
+
+
+
+    def addCurrencyToForm(self, currency: CurrencyLiveCycle, selected_info: SelectionInformation):
         sub = SubWindow(parent=self)
         sub.setParent(self)
 
@@ -145,11 +163,14 @@ class MainWindow(QMainWindow):
             BOKEH_SUBWINDOW_MINIMUM_HEIGHT)
         sub.setWindowTitle(selected_info.currency)
 
-        widget = CurrencyBokehWindow(sub, currency)
+        widget = CurrencyBokehWindow(sub, currency, InfoLabels(self.next_update, self.current_pair))
         widget.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
         sub.setWidget(widget)
         sub.setMouseTracking(True)
         self.AddAreaToMdi(sub)
+
+        self.currency_thread.terminate()
+
 
 class SubWindow(QMdiSubWindow):
     def __init__(self, parent: QMainWindow):
@@ -207,13 +228,11 @@ class SubWindow(QMdiSubWindow):
         super(SubWindow, self).close()
 
 
-
 def excepthook(exc_type, exc_value, exc_tb):
     tb = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     print("error catched!:")
     print("error message:\n", tb)
     QApplication.quit()
-    # or QtWidgets.QApplication.exit(0)
 
 
 def loadMain(client):
@@ -223,6 +242,3 @@ def loadMain(client):
     sys.excepthook = excepthook
     sys.exit(app.exec())
 
-
-async def bokeh_graphs_loader():
-    pass

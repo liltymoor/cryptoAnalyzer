@@ -1,3 +1,4 @@
+import subprocess
 import time
 
 import aiohttp
@@ -15,8 +16,12 @@ import time
 import requests
 import json, sys
 
+import multiprocessing as mp
+import concurrent.futures
+
+
 class DataFrameCollector:
-    def __init__(self, binance_client: Client, pair: str, session: aiohttp.ClientSession = None, interval="1m"):
+    def __init__(self, binance_client: Client, pair: str, session: aiohttp.ClientSession=None, interval="1m"):
         self.binance_client = binance_client
         self.binance_pair = pair
         self.collect_interval = interval
@@ -27,8 +32,7 @@ class DataFrameCollector:
 
     async def __binance_df(self, stock, interval, startDate: datetime = None, endDate: datetime = None):
         # Getting UTC format time
-        #now = datetime.utcnow()
-
+        now = datetime.utcnow()
         # TODO через некоторое время подчистить не нужные комменты
 
         # Getting last updates from binance client
@@ -109,8 +113,8 @@ class DataFrameCollector:
 
         # Getting last updates from binance client
         # This method is 0.3 sec
-        historical = None
-        if startDate: # if we're getting the period of data, then we're using another get request
+        response_content = None
+        if startDate:  # if we're getting the period of data, then we're using another get request\
             startDate = int(datetime.timestamp(startDate) * 1000)
             endDate = int(datetime.timestamp(endDate) * 1000)
             historical = requests.get("https://data.binance.com/api/v3/klines",
@@ -119,38 +123,35 @@ class DataFrameCollector:
                                           'interval': interval,
                                           'startTime': startDate,
                                           'endTime': endDate,
-                                          'limit': 720})
-        else: # otherwise we're using this request to get the latest frames
+                                          'limit': 1000})
+
+        else:  # otherwise we're using this request to get the latest frames
             historical = requests.get(f"https://data.binance.com/api/v3/klines?symbol={stock}&interval={interval}")
 
-        response_content = historical.json() # may be awaited
-        #print(response_content)
-        #print(len(response_content))
-
-        # This method is too slow (0.5 sec)
-        # response_content = self.binance_client.get_historical_klines(
-        #     stock, interval, str(start_date))
-
+        response_content = historical.json()  # may be awaited
         # Setting the pandas dataframe and its columns
-
         df = None
-        if startDate: # if we're getting a period of data, then we're indexing all the frames we got.
-            if index_func is datetime:
-                df = pd.DataFrame([content[1:] for content in response_content],
-                                  index=[pd.to_datetime(content[0] / 1000, unit='s') + timedelta(hours=3)
-                                         for content in response_content],
+        try:
+            if startDate:  # if we're getting a period of data, then we're indexing all the frames we got.
+                if index_func is datetime:
+                    df = pd.DataFrame([content[1:] for content in response_content],
+                                      index=[pd.to_datetime(content[0] / 1000, unit='s') + timedelta(hours=3)
+                                             for content in response_content],
+                                      columns=DF_COLUMNS)
+                elif index_func is int:
+                    df = pd.DataFrame([content for content in response_content],
+                                      index=[list(range(len(response_content)))],
+                                      columns=DF_COLUMNS_TIMED)
+
+            else:
+                # otherwise we're indexing the -2 frame, that is not last
+                # because last frame is current frame that is not finished yet
+                df = pd.DataFrame([response_content[-2][1:]],
+                                  index=[pd.to_datetime(response_content[-2][0] / 1000, unit='s') + timedelta(hours=3)],
                                   columns=DF_COLUMNS)
-            elif index_func is int:
-                df = pd.DataFrame([content for content in response_content],
-                                  index=[list(range(len(response_content)))],
-                                  columns=DF_COLUMNS_TIMED)
-        else:
-              # otherwise we're indexing the -2 frame, that is not last
-              # because last frame is current frame that is not finished yet
-            df = pd.DataFrame([response_content[-2][1:]],
-                              index=[pd.to_datetime(response_content[-2][0] / 1000, unit='s') + timedelta(hours=3)])
-            df.columns = DF_COLUMNS
-        # Formatting given time from binance
+        except TypeError:
+            print(response_content)
+
         df['Close Time'] = pd.to_datetime(df['Close Time'] / 1000, unit='s') + timedelta(hours=3)
 
         # Mapping specific columns to numeric value
@@ -169,6 +170,9 @@ class DataFrameCollector:
         df = None
         if startDate:
             df = self.__binance_notlive_df(str(self.binance_pair), interval, index_func, startDate=startDate, endDate=endDate)
+
+
+
         else:
             df = self.__binance_notlive_df(str(self.binance_pair), interval, index_func)
 
@@ -204,6 +208,10 @@ class DataFrameCollector:
         df[DF_NUMERIC_COLUMNS] = df[DF_NUMERIC_COLUMNS].apply(pd.to_numeric, axis=1)
 
         return df
+
+    def next_region(self, region, start_date, end_date):
+        return region.get_df_piece(start_date, end_date)
+
     def collect_big_data(self,
                          interval: str = '1m',
                          start_date: datetime = None,
@@ -212,15 +220,45 @@ class DataFrameCollector:
         period_delta = end_date - start_date
 
         # if period is more than 1 day we re using special class
-        start = datetime.now()
-        if (int(period_delta.seconds / 60)) > 720:
+        if (int(period_delta.total_seconds() / 60)) > 1000:
+            start_datetime = datetime.now()
+
             region = RegionController(self, interval, start_date, end_date)
             region_df = None
             remain_iters = region.get_remaining()
-            for i in range(remain_iters):
-                next_region_df = region.next()
-                region_df = pd.concat([region_df, next_region_df], ignore_index=False)
-            print((datetime.now() - start).total_seconds())
+
+            dfs = {}
+
+            # self.next_region(region, start_date, end_date)
+
+            # Создание пула процессов
+            with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+                # Создание списка задач для параллельного выполнения
+
+                future_to_index = {}
+                region_start_date = start_date
+
+                for i in range(remain_iters):
+                    future_to_index[
+                        executor.submit(self.next_region, region,
+                                        region_start_date, region_start_date + timedelta(hours=16, minutes=40))
+                    ] = i
+
+                    region_start_date += timedelta(hours=16, minutes=40)
+
+                for future in concurrent.futures.as_completed(future_to_index):
+                    i = future_to_index[future]
+                    dfs[i] = future.result()
+
+            dfs = dict(sorted(dfs.items()))
+            region_df = pd.concat(dfs.values())
+
+
+            end_datetime = datetime.now()
+            time_difference = end_datetime - start_datetime
+
+            print(f'Time: {time_difference.total_seconds()} seconds')
+
             return region_df
 
         df = self.binance_big_df_collect(interval, start_date, end_date)

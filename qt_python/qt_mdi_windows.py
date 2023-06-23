@@ -1,7 +1,9 @@
-
+import pyqtgraph
 from PyQt6.QtWidgets import QHBoxLayout
 
 import pyqtgraph as pg
+from pyqtgraph import *
+
 from qt_python.qt_imports import *
 from data.currency_handler import LiveCycler, CurrencyLiveCycle, IndicatorsCalculator
 from constants import *
@@ -88,20 +90,24 @@ class MdiWidget(QWidget):
 
 
 class CurrencyBokehWindow(MdiWidget):
-    def __init__(self, parent, currency: CurrencyLiveCycle):
+
+    def __init__(self, parent, currency: CurrencyLiveCycle, labels: InfoLabels):
         super(CurrencyBokehWindow, self).__init__(parent)
 
         self.setParent(parent)
         self.currency = currency
-        currency.updated.connect(self.PYQTGRAPH_update)
+        currency.updated.connect(self.graphUpdate)
+
         self.horizontalLayout = QHBoxLayout()
         uic.loadUi("qt_python/qt_designer/bokeh_tool.ui", self)
+
         self.close.clicked.connect(parent.close)
         self.setMouseTracking(True)
 
-        self.plotWidget = pg.PlotWidget(background='w')
+        self.plotWidget: PlotWidget = pg.PlotWidget(background='w')
         self.setLayout(QVBoxLayout())
 
+        self.labels = labels
 
         self.horizontalLayout.setContentsMargins(0,10,0,0)
         self.horizontalLayout.addWidget(self.plotWidget)
@@ -132,24 +138,38 @@ class CurrencyBokehWindow(MdiWidget):
         self.point_pos = [None, None]
 
         self.plotWidget.scene().sigMouseMoved.connect(self.mouseMoved)
+        self.plotWidget.scene().sigMouseClicked.connect(self.mouseClicked)
 
         self.scatterPlot = pg.ScatterPlotItem()
 
         self.plotWidget.addItem(self.scatterPlot)
         currency.window_created()
 
-    def PYQTGRAPH_update(self, df: pd.DataFrame):
+    def graphUpdate(self, df: pd.DataFrame):
         self.current_df = df.copy()
         self.drawPyQtGraph(df)
 
     def drawPyQtGraph(self, df: pd.DataFrame):
         if df is None:
             return
+        # prev = 0
+        #
+        # red_green_kline = []
+        # first_item = True
+        # for index, item in enumerate(df["Close"]):
+        #     if first_item:
+        #         red_green_kline.append(False)
+        #     if item < df["Close"][index - 1]:
+        #         red_green_kline.append(True)
+        #     else:
+        #         red_green_kline.append(False)
 
         self.plotWidget.clear()
-        pen = pg.mkPen(color='#1f77b4', width=2)
+        pen = pg.mkPen(color='#c29d8f', width=2)
+
         self.plotWidget.plot(np.arange(1, len(df) + 1), df["Close"],
-                             pen=pen)
+                        pen=pen)
+
 
         if None not in self.point_pos:
             self.plotWidget.removeItem(self.scatterPlot)
@@ -161,17 +181,6 @@ class CurrencyBokehWindow(MdiWidget):
             self.plotWidget.addItem(scatter)
             self.scatterPlot = scatter
 
-    def addPoint(self):
-        new_date = self.current_df.index[-1] + pd.DateOffset(days=1)
-        new_value = np.random.randn()
-        new_point = pd.DataFrame(
-            {"Close": new_value},
-            index=[new_date])
-
-        self.current_df = pd.concat([self.current_df, new_point])
-
-        self.drawPyQtGraph(self.current_df)
-
     def showInfoWindow(self, x, y):
         self.infoWindow.setText(f"Date: {x}\nY: {y}")
         mouse_pos = QtGui.QCursor.pos()
@@ -181,6 +190,12 @@ class CurrencyBokehWindow(MdiWidget):
 
     def hideInfoWindow(self):
         self.infoWindow.hide()
+
+    def mouseClicked(self, arg):
+        self.currency.valid_time()
+        print("хай")
+        self.labels.next_update.setText(str(self.currency.get_exec_time()))
+        self.labels.current_pair.setText(self.currency.currency_pair)
 
     def mouseMoved(self, pos):
         if self.current_df is None:
