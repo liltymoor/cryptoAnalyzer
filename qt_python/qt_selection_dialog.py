@@ -26,6 +26,21 @@ class SelectionListView(QListView):
         super(SelectionListView, self).currentChanged(current, previous)
 
 
+class SelectionSearchBox(QTextEdit):
+    def __init__(self, parent, size, pos):
+        super().__init__()
+        self.move(pos)
+        self.setFixedSize(size)
+        self.setParent(parent)
+
+
+    def keyPressEvent(self, e: QtGui.QKeyEvent) -> None:
+        super(SelectionSearchBox, self).keyPressEvent(e)
+        self.parent().updateList(self.toPlainText())
+
+
+
+
 class SelectionDialog(QDialog):
     accepted = QtCore.pyqtSignal(SelectionInformation)
 
@@ -44,11 +59,12 @@ class SelectionDialog(QDialog):
 
     def __init__(self, parent):
         super(SelectionDialog, self).__init__(parent)
-        # self.setParent(parent)
+        self.setParent(parent)
         self.indicatorsList = SelectionListView(None)
 
         self.selected_pair = QLabel()
         self.textEdit = QTextEdit()
+
         self.isLive = QCheckBox()
 
         self.fromDate = QDateTimeEdit()
@@ -57,6 +73,7 @@ class SelectionDialog(QDialog):
         self.dialogButtons = QDialogButtonBox()
 
         uic.loadUi("qt_python/qt_designer/graph_selection_dialog.ui", self)
+        self.textEdit = SelectionSearchBox(self, self.textEdit.size(), self.textEdit.pos())
         self.dialogButtons.button(self.dialogButtons.StandardButton.Ok).setEnabled(False)
         self.fromDate.setDateTime(datetime.datetime.now())
         self.toDate.setDateTime(datetime.datetime.now())
@@ -65,16 +82,37 @@ class SelectionDialog(QDialog):
         self.model = QtGui.QStandardItemModel()
         self.indicatorsList.setModel(self.model)
 
-        for name in parent.pairs:
-            pair_name = name
-
-            item = QtGui.QStandardItem(pair_name)
-            self.model.appendRow(item)
-
+        self.updateList("")
 
         self.accepted.connect(self.selectionComplete)
         self.rejected.connect(self.close)
 
+
+    def updateList (self, searchString:str):
+        self.model.clear()
+
+        if searchString == "":
+            for name in self.parent().pairs:
+                pair_name = name
+
+                item = QtGui.QStandardItem(pair_name)
+                self.model.appendRow(item)
+            return
+
+
+        new_list = []
+        for name in self.parent().pairs:
+            if searchString.lower() in name.lower():
+                new_list.append(name)
+
+        for pair in new_list:
+            qitem = QtGui.QStandardItem(pair)
+            self.model.appendRow(qitem)
+
+
+    def eventFilter(self, a0: QtCore.QObject, a1: QtCore.QEvent) -> bool:
+        print(a0, a1)
+        return super(SelectionDialog, self).eventFilter(a0,a1)
 
     def selectItem(self, index: int):
         if index != -1:
