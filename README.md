@@ -26,6 +26,12 @@ USD_TYPE - для учета долларовой комиссии надо ук
 CppTrading.exe <PAIR> <USD_TYPE>
 ```
 
+для работы с выгруженными данным вам понадобится:
+1. ExcelReader
+2. Db browser for SQLite - https://sqlitebrowser.org/
+3. ParquetViewer - https://github.com/mukunku/ParquetViewer
+
+
 
 # Возможные проблемы с установкой библиотек Qt
 
