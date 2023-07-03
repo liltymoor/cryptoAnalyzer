@@ -21,6 +21,11 @@ import concurrent.futures
 
 
 class DataFrameCollector:
+
+    datetime_mapping = 's'
+    datetime_divider = 1000
+    gmt_delta = timedelta(hours=3)
+
     def __init__(self, binance_client: Client, pair: str, session: aiohttp.ClientSession=None, interval="1m"):
         self.binance_client = binance_client
         self.binance_pair = pair
@@ -30,7 +35,25 @@ class DataFrameCollector:
     def debug_msg(*msg):
          print("[DF_COLLECTOR]", ' '.join([str(i) for i in msg]))
 
-    async def __binance_df(self, stock, interval, startDate: datetime = None, endDate: datetime = None):
+    @staticmethod
+    def index_columns(df: pd.DataFrame, index_func=datetime):
+        result = None
+        if index_func is datetime:
+            index_column = \
+                [datetime.fromtimestamp(time / DataFrameCollector.datetime_divider) for time in df["Open Time"]]
+            df.drop("Open Time", axis=1)
+
+            result = pd.DataFrame(df, index=index_column, columns=DF_COLUMNS)
+        elif index_func is int:
+            df["Open Time"] = [datetime.fromtimestamp(time / DataFrameCollector.datetime_divider) for time in df["Open Time"]]
+            result = pd.DataFrame(df, columns=DF_COLUMNS_TIMED)
+
+        result["Close Time"] = [datetime.fromtimestamp(time / DataFrameCollector.datetime_divider) for time in df["Close Time"]]
+
+        return result
+
+
+    async def __binance_df(self, stock, interval, startDate: datetime = None, endDate: datetime = None, index_func=datetime):
         # Getting UTC format time
         now = datetime.utcnow()
         # TODO через некоторое время подчистить не нужные комменты
@@ -63,22 +86,22 @@ class DataFrameCollector:
 
         # Setting the pandas dataframe and its columns
 
+
         df = None
         if startDate: # if we're getting a period of data, then we're indexing all the frames we got.
-            df = pd.DataFrame([content[1:] for content in response_content],
-                              index=[pd.to_datetime(content[0] / 1000, unit='s') + timedelta(hours=3)
-                                     for content in response_content])
+            df = pd.DataFrame([content for content in response_content],
+                              columns=DF_COLUMNS_TIMED)
         else:
               # otherwise we're indexing the -2 frame, that is not last
               # because last frame is current frame that is not finished yet
-            df = pd.DataFrame([response_content[-2][1:]],
-                              index=[pd.to_datetime(response_content[-2][0] / 1000, unit='s') + timedelta(hours=3)])
-        df.columns = DF_COLUMNS
+            df = pd.DataFrame([response_content[-2]],
+                                columns=DF_COLUMNS_TIMED)
+
+
 
         # Formatting given time from binance
-        #df['Open Time'] = pd.to_datetime(df['Open Time'] / 1000, unit='s') + timedelta(hours=3)
-        df['Close Time'] = pd.to_datetime(df['Close Time'] / 1000, unit='s') + timedelta(hours=3)
-
+        #df['Close Time'] = pd.to_datetime(df['Close Time'] / self.datetime_divider, unit=self.datetime_mapping) + timedelta(hours=3)
+        df = DataFrameCollector.index_columns(df, index_func)
         # Mapping specific columns to numeric value
         df[DF_NUMERIC_COLUMNS] = df[DF_NUMERIC_COLUMNS].apply(pd.to_numeric, axis=1)
         return df
@@ -87,15 +110,24 @@ class DataFrameCollector:
                      interval: str,
                      live_df=None,
                      startDate: datetime = None,
-                     endDate: datetime = None ):
+                     endDate: datetime = None, index_func=datetime):
         """ (Async version) Collect Pandas df easily with binance client, pair, interval and optionally startDate and endDate.
         If live_df is None (default case) - it will return the last collected df."""
 
         df = None
         if startDate:
-            df = await self.__binance_df(str(self.binance_pair), interval, startDate=startDate, endDate=endDate)
+            df = await self.__binance_df(str(self.binance_pair), interval, startDate=startDate, endDate=endDate, index_func=index_func)
         else:
-            df = await self.__binance_df(str(self.binance_pair), interval)
+            df = await self.__binance_df(str(self.binance_pair), interval, index_func=index_func)
+
+        live_len = len(live_df)
+        indexes = []
+        for row in range(len(df)):
+            indexes.append(live_len)
+            live_len += 1
+
+        index = pd.Index(indexes)
+        df = df.set_index(index)
 
         if df is not None:
             # if given df is None, or its None by default - this will return the collected df
@@ -130,29 +162,23 @@ class DataFrameCollector:
 
         response_content = historical.json()  # may be awaited
         # Setting the pandas dataframe and its columns
+
+
+
         df = None
         try:
             if startDate:  # if we're getting a period of data, then we're indexing all the frames we got.
-                if index_func is datetime:
-                    df = pd.DataFrame([content[1:] for content in response_content],
-                                      index=[pd.to_datetime(content[0] / 1000, unit='s') + timedelta(hours=3)
-                                             for content in response_content],
-                                      columns=DF_COLUMNS)
-                elif index_func is int:
-                    df = pd.DataFrame([content for content in response_content],
-                                      index=[list(range(len(response_content)))],
-                                      columns=DF_COLUMNS_TIMED)
-
+                df = pd.DataFrame([content for content in response_content],
+                                    columns=DF_COLUMNS_TIMED)
             else:
                 # otherwise we're indexing the -2 frame, that is not last
                 # because last frame is current frame that is not finished yet
-                df = pd.DataFrame([response_content[-2][1:]],
-                                  index=[pd.to_datetime(response_content[-2][0] / 1000, unit='s') + timedelta(hours=3)],
-                                  columns=DF_COLUMNS)
+                df = pd.DataFrame([response_content[-2]],
+                                  columns=DF_COLUMNS_TIMED)
         except TypeError:
             print(response_content)
 
-        df['Close Time'] = pd.to_datetime(df['Close Time'] / 1000, unit='s') + timedelta(hours=3)
+        df = DataFrameCollector.index_columns(df, index_func)
 
         # Mapping specific columns to numeric value
         df[DF_NUMERIC_COLUMNS] = df[DF_NUMERIC_COLUMNS].apply(pd.to_numeric, axis=1)
@@ -189,38 +215,28 @@ class DataFrameCollector:
         response_content = self.binance_client.get_historical_klines(
             self.binance_pair, interval, start_date, end_date, limit=100)
 
-        df = None
-        if index_func is datetime: # datetime indexes is the actual time of the frame
-            df = pd.DataFrame([content[1:] for content in response_content],
-                              index=[pd.to_datetime(content[0] / 1000, unit='s') + timedelta(hours=3)
-                                     for content in response_content],
-                              columns=DF_COLUMNS)
-        elif index_func is int: # int indexes is 1,2,3,4,5,6
-            df = pd.DataFrame([content for content in response_content],
-                              index=[list(range(len(response_content)))],
-                              columns=DF_COLUMNS_TIMED)
+        df = pd.DataFrame([content for content in response_content],
+                            columns=DF_COLUMNS_TIMED)
 
-            df['Open Time'] = pd.to_datetime(df['Open Time'] / 1000, unit='s') + timedelta(hours=3)
-
-        df['Close Time'] = pd.to_datetime(df['Close Time'] / 1000, unit='s') + timedelta(hours=3)
-
+        df = DataFrameCollector.index_columns(df, index_func)
         # Mapping specific columns to numeric value
         df[DF_NUMERIC_COLUMNS] = df[DF_NUMERIC_COLUMNS].apply(pd.to_numeric, axis=1)
 
         return df
 
-    def next_region(self, region, start_date, end_date):
-        return region.get_df_piece(start_date, end_date)
+    def next_region(self, region, start_date, end_date, index_func=datetime):
+        return region.get_df_piece(start_date, end_date, index_func=index_func)
 
     def collect_big_data(self,
                          interval: str = '1m',
                          start_date: datetime = None,
-                         end_date: datetime = None):
+                         end_date: datetime = None,
+                         index_func=datetime):
 
         period_delta = end_date - start_date
 
         # if period is more than 1 day we re using special class
-        if (int(period_delta.total_seconds() / 60)) > 1000:
+        if (int(period_delta.total_seconds() / 60)) > self.datetime_divider:
             start_datetime = datetime.now()
 
             region = RegionController(self, interval, start_date, end_date)
@@ -231,9 +247,7 @@ class DataFrameCollector:
 
             # self.next_region(region, start_date, end_date)
 
-            # Создание пула процессов
             with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
-                # Создание списка задач для параллельного выполнения
 
                 future_to_index = {}
                 region_start_date = start_date
@@ -241,7 +255,7 @@ class DataFrameCollector:
                 for i in range(remain_iters):
                     future_to_index[
                         executor.submit(self.next_region, region,
-                                        region_start_date, region_start_date + timedelta(hours=16, minutes=40))
+                                        region_start_date, region_start_date + timedelta(hours=16, minutes=40), index_func=index_func)
                     ] = i
 
                     region_start_date += timedelta(hours=16, minutes=40)

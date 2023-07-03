@@ -1,5 +1,5 @@
 import asyncio
-
+import os
 
 from datetime import datetime, timedelta
 
@@ -43,6 +43,7 @@ class LiveCycler:
         self.session = aiohttp.ClientSession()
 
     async def live_loop(self):
+        currencies_to_save = []
         for currency in self.currencies:
             #currency.check_lost_frames()
             if datetime.now() >= currency.get_exec_time():
@@ -50,6 +51,12 @@ class LiveCycler:
                 await currency.calculate_indicators() # TODO refactor
                 currency.print_info()
                 self.signal.emit(currency.get_dataframes())
+                currencies_to_save.append(currency)
+
+        # save all
+        for currency in currencies_to_save:
+            await currency.async_save_df('temp/')
+            del currencies_to_save[currencies_to_save.index(currency)]
 
 
 
@@ -59,7 +66,7 @@ class CurrencyLiveCycle(QtCore.QObject):
                  period_date_from: datetime = None):
         super(CurrencyLiveCycle,self).__init__()
         self.__binance_client = client
-
+        self.__index_func = int
         self.currency_pair = pair
         self.interval = interval
 
@@ -78,7 +85,8 @@ class CurrencyLiveCycle(QtCore.QObject):
             self.__df = self.__df_collector.collect_big_data(
                 self.interval,
                 start_date=start_init_time,
-                end_date=self.__get_next_time() - timedelta(minutes=2)
+                end_date=self.__get_next_time() - timedelta(minutes=2),
+                index_func=self.__index_func
             )
         else:
             start_init_time = oneday_init_time
@@ -86,7 +94,7 @@ class CurrencyLiveCycle(QtCore.QObject):
             self.__df = self.__df_collector.collect(
                 self.interval,
                 startDate=start_init_time,
-                endDate=self.__get_next_time() - timedelta(minutes=2)
+                endDate=self.__get_next_time() - timedelta(minutes=2), index_func=self.__index_func
             )
 
         self.__last_updated = datetime.now()
@@ -104,6 +112,8 @@ class CurrencyLiveCycle(QtCore.QObject):
         })
         self.__execute_time = self.__get_next_time()
         self.print_info()
+        self.save_df('temp/')
+
 
     def __get_next_time(self):
         if self.interval[-1] == "m":
@@ -124,10 +134,13 @@ class CurrencyLiveCycle(QtCore.QObject):
         return self.__execute_time
 
     async def get_live(self):
-        self.__df = await self.__df_collector.live_collect(self.interval, live_df=self.__df)
+        self.__df = await self.__df_collector.live_collect(self.interval, live_df=self.__df, index_func=self.__index_func)
         self.__last_updated = datetime.now()
         self.valid_time()
-        self.updated.emit(self.__df)
+        #self.updated.emit(self.__df)
+
+    #async def redraw_window(self):
+        #self.updated.emit(self.__df)
 
     def get_period(self, period_start: datetime, period_end: datetime):
         self.__df = self.__df_collector.live_collect(self.__df, period_start, period_end)
@@ -144,7 +157,7 @@ class CurrencyLiveCycle(QtCore.QObject):
         if (datetime.now() - self.__last_updated) > delta:
             print("Lost frames were found. Fetching them")
             self.get_period(self.__last_updated, self.__get_next_time() - delta)
-            self.updated.emit(self.__df)
+            #self.updated.emit(self.__df)
 
 
     def print_info(self):
@@ -159,6 +172,23 @@ class CurrencyLiveCycle(QtCore.QObject):
 
     def get_dataframes(self):
         return (self.__df, self.__ind_df)
+
+
+    async def async_save_df(self, path):
+        now = datetime.utcnow()
+        if not os.path.exists('temp'):
+            os.makedirs('temp')
+
+        self.__df.to_parquet(f'{path}{self.currency_pair}.parquet')
+        print(f'[SAVE_DF] Currency: {self.currency_pair} saved in {(datetime.utcnow() - now).total_seconds()}')
+
+    def save_df(self, path):
+        now = datetime.utcnow()
+        if not os.path.exists('temp'):
+            os.makedirs('temp')
+
+        self.__df.to_parquet(f'{path}{self.currency_pair}.parquet')
+        print(f'[SAVE_DF] Currency: {self.currency_pair} saved in {(datetime.utcnow() - now).total_seconds()}')
 
     def window_created(self):
         # called once, when the window init complete

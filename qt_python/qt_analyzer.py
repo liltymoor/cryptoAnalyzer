@@ -171,6 +171,11 @@ class MainWindow(QMainWindow):
 
         self.currency_thread.terminate()
 
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        for parquet in os.listdir('temp/'):
+            os.remove('temp/' + parquet)
+
+
 
 class SubWindow(QMdiSubWindow):
     def __init__(self, parent: QMainWindow):
